@@ -1,0 +1,21 @@
+fastapi[standard]
+uvicorn[standard]
+pydantic-settings
+
+ffmpeg-python
+torch
+torchvision
+pillow
+numpy
+pandas
+tqdm
+opencv-python-headless
+
+# C2LIP encoder
+open_clip_torch>=2.31
+timm>=1.0.15
+sentencepiece
+huggingface_hub
+
+# vector index
+turbovec==0.8.0
