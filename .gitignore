@@ -1,3 +1,5 @@
-.vscode/
-data/
 .venv/
+data/
+.git
+__pycache__/
+.vscode/

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from schemas import QueryRequest, QueryResponse
 import uuid
-from search import KeyframeSearcher
+from keyframe import KeyframeSearcher
 
-router = APIRouter(tags=["videos"])
+router = APIRouter(tags=["Query"])
 
 @router.get("", response_model=QueryResponse)
 def query(request: QueryRequest):

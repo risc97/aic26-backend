@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import List
+from datetime import datetime
 
 class Item(BaseModel):
     keyframe_id: str
     video_id: str
     
 class QueryRequest(BaseModel):
-    query_id: str
     query: str = Field(..., description="Truy vấn đoạn video cần tìm")
     limit: int = Field(100, description="Số lượng kết quả trả về")
     mode: str = Field("keyframe", description="Chế độ search")
@@ -33,3 +33,7 @@ class Keyframe(BaseModel):
 class SearchHit(Keyframe):
     rank: int
     score: float
+
+class LogEntry(QueryRequest, QueryResponse):
+    request_id: str
+    timestamp: datetime | None

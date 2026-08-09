@@ -5,8 +5,10 @@ from pathlib import Path
 
 import numpy as np
 
-from db import Keyframe, MetadataDatabase
+import sys
 from models import C2Lip
+
+from db import Keyframe, MetadataDatabase
 
 
 @dataclass
