@@ -11,12 +11,12 @@ router = APIRouter(tags=["Logs"])
 LOG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS logs (
     request_id TEXT PRIMARY KEY,
-    timestamp TEXT
+    timestamp TEXT,
     query TEXT,
     result_limit INTEGER,
     mode TEXT,
     results TEXT,
-    total INTEGER,
+    total INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
 """
@@ -53,7 +53,7 @@ class LogRepo:
 
     def create(self, entry: LogEntry):
         self.conn.execute(
-            "INSERT INTO logs (request_id, timestamp, query, limit, mode, results, total) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO logs (request_id, timestamp, query, result_limit, mode, results, total) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 entry.request_id, entry.timestamp.strftime('%Y-%m-%d %H:%M:%S'), entry.query, entry.limit, entry.mode,
                 json.dumps([i.model_dump() for i in entry.results]), entry.total,
