@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from routers import keyframe, video
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,10 +20,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
 )
 
-
-app = FastAPI(lifespan=lifespan)
+app.include_router(keyframe.router, prefix="/keyframe")
+app.include_router(video.router, prefix="/video")
 
 @app.get("/health")
 async def health_check():
