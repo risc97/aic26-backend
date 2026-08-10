@@ -19,17 +19,16 @@ CREATE TABLE IF NOT EXISTS segments (
 CREATE INDEX IF NOT EXISTS idx_segments_video ON segments(video_id);
 
 CREATE TABLE IF NOT EXISTS keyframes (
-    keyframe_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyframe_id   TEXT NOT NULL,
     video_id      TEXT NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
     frame_idx      INTEGER NOT NULL,
     timestamp_ms  INTEGER NOT NULL,
     image_path    TEXT NOT NULL,
     segment_id    INTEGER REFERENCES segments(segment_id) ON DELETE SET NULL,
+    PRIMARY KEY (video_id, keyframe_id),
     UNIQUE(video_id, frame_idx)
 );
-CREATE INDEX IF NOT EXISTS idx_keyframes_video ON keyframes(video_id);
 CREATE INDEX IF NOT EXISTS idx_keyframes_video_time ON keyframes(video_id, timestamp_ms);
-CREATE INDEX IF NOT EXISTS idx_keyframes_video_id ON keyframes(video_id, frame_idx);
 """
 
 

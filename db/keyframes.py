@@ -6,6 +6,8 @@ from typing import Iterable
 from .connection import transaction
 from .models import Keyframe, row_to_keyframe
 
+COLUMNS = "video_id, keyframe_id, frame_idx, timestamp_ms, image_path, segment_id"
+
 
 class KeyframeRepo:
     """Keyframes CRUD"""
@@ -13,42 +15,53 @@ class KeyframeRepo:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
-    def create(self, video_id: str, frame_idx: int, timestamp_ms: int,
+    def create(self, video_id: str, keyframe_id: str, frame_idx: int, timestamp_ms: int,
                image_path: str, segment_id: int) -> Keyframe:
-        cur = self.conn.execute(
-            "INSERT INTO keyframes (video_id, frame_idx, timestamp_ms, image_path, segment_id) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (video_id, frame_idx, timestamp_ms, image_path, segment_id),
+        self.conn.execute(
+            f"INSERT INTO keyframes ({COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
+            (video_id, keyframe_id, frame_idx, timestamp_ms, image_path, segment_id),
         )
         self.conn.commit()
-        return Keyframe(cur.lastrowid, video_id, frame_idx, timestamp_ms, image_path, segment_id)
+        return Keyframe(keyframe_id, video_id, frame_idx, timestamp_ms, image_path,
+                        segment_id)
 
-    def create_many(self, rows: Iterable[tuple[str, int, int, str, int | None]]) -> int:
+    def create_many(
+        self, rows: Iterable[tuple[str, str, int, int, str, int | None]]
+    ) -> int:
         rows = list(rows)
         with transaction(self.conn) as conn:
             conn.executemany(
-                "INSERT INTO keyframes (video_id, frame_idx, timestamp_ms, image_path, segment_id) "
-                "VALUES (?, ?, ?, ?, ?)",
-                rows,
+                f"INSERT INTO keyframes ({COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)", rows
             )
         return len(rows)
 
-    def get(self, keyframe_id: int) -> Keyframe | None:
+    def get(self, video_id: str, keyframe_id: str) -> Keyframe | None:
         row = self.conn.execute(
-            "SELECT * FROM keyframes WHERE keyframe_id = ?", (keyframe_id,)
+            "SELECT * FROM keyframes WHERE video_id = ? AND keyframe_id = ?",
+            (video_id, keyframe_id),
         ).fetchone()
         return row_to_keyframe(row) if row else None
 
-    def get_many(self, ids: Iterable[int]) -> list[Keyframe]:
-        ids = list(ids)
-        if not ids:
+    def get_many(self, keys: Iterable[tuple[str, str]]) -> list[Keyframe]:
+        keys = list(keys)
+        if not keys:
             return []
-        placeholders = ",".join("?" * len(ids))
+        placeholders = ",".join(["(?, ?)"] * len(keys))
+        params = [value for key in keys for value in key]
         rows = self.conn.execute(
-            f"SELECT * FROM keyframes WHERE keyframe_id IN ({placeholders})", ids
+            f"SELECT * FROM keyframes WHERE (video_id, keyframe_id) IN "
+            f"(VALUES {placeholders})",
+            params,
         ).fetchall()
-        by_id = {r["keyframe_id"]: row_to_keyframe(r) for r in rows}
-        return [by_id[i] for i in ids if i in by_id]
+        by_key = {(r["video_id"], r["keyframe_id"]): row_to_keyframe(r) for r in rows}
+        return [by_key[k] for k in keys if k in by_key]
+
+    def get_by_frame_idx(self, video_id: str, frame_idx: int) -> Keyframe | None:
+        row = self.conn.execute(
+            "SELECT * FROM keyframes WHERE video_id = ? AND frame_idx = ?",
+            (video_id, frame_idx),
+        ).fetchone()
+        return row_to_keyframe(row) if row else None
 
     def list_by_video(
         self, video_id: str, start_ms: int | None = None, end_ms: int | None = None,
@@ -72,11 +85,11 @@ class KeyframeRepo:
         return [row_to_keyframe(r) for r in rows]
 
     def update(
-        self, keyframe_id: int,
+        self, video_id: str, keyframe_id: str,
         frame_idx: int | None = None, timestamp_ms: int | None = None,
         image_path: str | None = None, segment_id: int | None = None,
     ) -> Keyframe | None:
-        existing = self.get(keyframe_id)
+        existing = self.get(video_id, keyframe_id)
         if existing is None:
             return None
         frame_idx = existing.frame_idx if frame_idx is None else frame_idx
@@ -85,16 +98,17 @@ class KeyframeRepo:
         segment_id = existing.segment_id if segment_id is None else segment_id
         self.conn.execute(
             "UPDATE keyframes SET frame_idx = ?, timestamp_ms = ?, image_path = ?, "
-            "segment_id = ? WHERE keyframe_id = ?",
-            (frame_idx, timestamp_ms, image_path, segment_id, keyframe_id),
+            "segment_id = ? WHERE video_id = ? AND keyframe_id = ?",
+            (frame_idx, timestamp_ms, image_path, segment_id, video_id, keyframe_id),
         )
         self.conn.commit()
-        return Keyframe(keyframe_id, existing.video_id, frame_idx, timestamp_ms,
+        return Keyframe(keyframe_id, video_id, frame_idx, timestamp_ms,
                         image_path, segment_id)
 
-    def delete(self, keyframe_id: int) -> bool:
+    def delete(self, video_id: str, keyframe_id: str) -> bool:
         cur = self.conn.execute(
-            "DELETE FROM keyframes WHERE keyframe_id = ?", (keyframe_id,)
+            "DELETE FROM keyframes WHERE video_id = ? AND keyframe_id = ?",
+            (video_id, keyframe_id),
         )
         self.conn.commit()
         return cur.rowcount > 0

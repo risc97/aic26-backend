@@ -22,7 +22,7 @@ class Segment:
 
 @dataclass
 class Keyframe:
-    keyframe_id: int
+    keyframe_id: str
     video_id: str
     frame_idx: int
     timestamp_ms: int
