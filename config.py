@@ -1,10 +1,9 @@
 from pathlib import Path
 import sys
 
-DATA_PATH = Path("../aic/data")
-# Paths in metadata.db are stored relative to the parent of DATA_PATH
-# (e.g. "data/videos/L21_V001.webm"), so that is the media root.
-MEDIA_ROOT = DATA_PATH.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_PATH = ROOT_DIR / "data"
+
 METADATA_DB_PATH = DATA_PATH / "metadata.db"
 KEYFRAMES_DB_PATH = DATA_PATH / "keyframes"
 VIDEOS_DB_PATH = DATA_PATH / "videos"

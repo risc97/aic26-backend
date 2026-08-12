@@ -6,19 +6,9 @@ from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
-from config import MEDIA_ROOT
-
 
 def resolve_media_path(stored_path: str) -> Path:
-    path = Path(stored_path)
-    if not path.is_absolute():
-        path = MEDIA_ROOT / path
-
-    root = MEDIA_ROOT.resolve()
-    path = path.resolve()
-    if not path.is_relative_to(root):
-        raise HTTPException(status_code=404, detail="Media not found")
-    return path
+    return Path(stored_path).resolve()
 
 
 def file_response(stored_path: str, *, max_age: int) -> FileResponse:
