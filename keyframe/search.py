@@ -10,6 +10,8 @@ from models import C2Lip
 
 from db import Keyframe, MetadataDatabase
 
+from .ids import split_vector_id
+
 
 @dataclass
 class SearchHit:
@@ -39,14 +41,15 @@ class KeyframeSearcher:
         # a 1-row query may come back 1D or 2D depending on the build
         scores, ids = np.atleast_2d(scores)[0], np.atleast_2d(ids)[0]
 
-        found = self.db.keyframes.get_many(int(i) for i in ids)
-        by_id = {kf.keyframe_id: kf for kf in found}
+        keys = [split_vector_id(int(i)) for i in ids if int(i) >= 0]
+        found = self.db.keyframes.get_many(keys)
+        by_key = {(kf.video_id, kf.keyframe_id): kf for kf in found}
 
         hits = []
-        for score, keyframe_id in zip(scores, ids):
-            keyframe = by_id.get(int(keyframe_id))
+        for score, key in zip(scores, keys):
+            keyframe = by_key.get(key)
             if keyframe is None:
-                continue 
+                continue
             hits.append(SearchHit(len(hits) + 1, float(score), keyframe))
         return hits
 
