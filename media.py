@@ -6,9 +6,11 @@ from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
+from config import DATA_PATH
+
 
 def resolve_media_path(stored_path: str) -> Path:
-    return Path(stored_path).resolve()
+    return (DATA_PATH / stored_path).resolve()
 
 
 def file_response(stored_path: str, *, max_age: int) -> FileResponse:
