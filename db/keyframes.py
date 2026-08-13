@@ -78,6 +78,24 @@ class KeyframeRepo:
         rows = self.conn.execute(query, params).fetchall()
         return [row_to_keyframe(r) for r in rows]
 
+    def list_by_videos(self, video_ids: Iterable[str]):
+        video_ids = list(video_ids)
+        out: dict[str, list[Keyframe]] = {}
+        for i in range(0, len(video_ids), 400):
+            chunk = video_ids[i:i+400]
+            placeholders = ",".join("?"*len(chunk))
+            rows = self.conn.execute(
+                f"SELECT * FROM keyframes WHERE video_id IN ({placeholders}) "
+                f"ORDER BY video_id, timestamp_ms",
+                chunk,
+            ).fetchall()
+            for r in rows:
+                video_id = r["video_id"]
+                if video_id not in out:
+                    out[video_id] = []
+                out[video_id].append(row_to_keyframe(r))
+        return out
+
     def list_by_segment(self, segment_id: int) -> list[Keyframe]:
         rows = self.conn.execute(
             "SELECT * FROM keyframes WHERE segment_id = ? ORDER BY frame_idx", (segment_id,)
