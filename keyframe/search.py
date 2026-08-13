@@ -39,8 +39,12 @@ class KeyframeSearcher:
         del self.model.model.visual
         torch.cuda.empty_cache()
 
+    def encode_texts(self, texts: list[str]) -> np.ndarray:
+        """Texts -> (n, dim) L2-normalized float32"""
+        return np.ascontiguousarray(self.model.encode_texts(texts), dtype=np.float32)
+
     def search(self, query: str, k: int = 20) -> list[SearchHit]:
-        vec = np.ascontiguousarray(self.model.encode_texts([query]), dtype=np.float32)
+        vec = self.encode_texts([query])
         scores, ids = self.index.search(vec, k=k)
         # a 1-row query may come back 1D or 2D depending on the build
         scores, ids = np.atleast_2d(scores)[0], np.atleast_2d(ids)[0]

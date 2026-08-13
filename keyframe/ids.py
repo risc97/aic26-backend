@@ -25,5 +25,12 @@ def vector_id(video_id: str, keyframe_id: str) -> int:
 def split_vector_id(vid: int) -> tuple[str, str]:
     """Inverse of vector_id: int64 -> (video_id, keyframe_id)."""
     head, keyframe = divmod(int(vid), KEYFRAMES_PER_VIDEO)
-    group, num = divmod(head, VIDEOS_PER_GROUP)
-    return f"L{group:02d}_V{num:03d}", f"{keyframe:04d}"
+    return video_id_from_key(head), f"{keyframe:04d}"
+
+def video_id_from_key(key: int):
+    """Inverse of head: 21001 -> L21_V001"""
+    group, num = divmod(int(key), VIDEOS_PER_GROUP)
+    return f"L{group:02d}_V{num:03d}"
+
+def video_key(vid: int):
+    return int(vid) // KEYFRAMES_PER_VIDEO
