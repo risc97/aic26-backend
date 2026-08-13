@@ -10,19 +10,25 @@ router = APIRouter(tags=["Query"])
 
 @router.post("", response_model=QueryResponse)
 def query(request: QueryRequest, http_request: Request):
-    searcher = http_request.app.state.searcher
-    if searcher is None:
+    registry = http_request.app.state.searchers
+    pool = http_request.app.state.search_pool
+
+    try:
+        # loading happens on the search thread, so the model lands in one place
+        searcher = pool.submit(registry.get, request.model).result()
+    except (KeyError, FileNotFoundError):
         raise HTTPException(
             status_code=503,
-            detail="Search index is not loaded; build the keyframe index first",
+            detail=(
+                f"Search index for model '{request.model}' is not loaded; "
+                f"available models: {registry.available() or 'none'}"
+            ),
         )
 
     request_id = str(uuid.uuid4())
     timestamp = datetime.now()
 
-    hits = http_request.app.state.search_pool.submit(
-        searcher.search, request.query, request.limit
-    ).result()
+    hits = pool.submit(searcher.search, request.query, request.limit).result()
 
     results = [
         Item(keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id)
@@ -37,6 +43,7 @@ def query(request: QueryRequest, http_request: Request):
             query=request.query,
             limit=request.limit,
             mode=request.mode,
+            model=request.model,
             results=results,
             total=total
         )

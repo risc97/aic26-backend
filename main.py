@@ -2,24 +2,27 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
+import torch
 
-from config import CKPT_PATH, KF_INDEX_PATH, LOG_DB_PATH, METADATA_DB_PATH
+from keyframe import SearcherRegistry
+from config import CKPT_PATHS, KF_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH
 from routers import keyframe, query, video
 from routers.logs import LogDatabase
 
 
-def build_searcher():
-    missing = [p for p in (KF_INDEX_PATH, CKPT_PATH) if not p.exists()]
-    if missing:
-        print(f"warning: search disabled, missing {', '.join(str(p) for p in missing)}")
-        return None
-
-    import torch
-    from keyframe import KeyframeSearcher
-
+def build_registry():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Loading keyframe searcher on {device}...")
-    return KeyframeSearcher(KF_INDEX_PATH, METADATA_DB_PATH, CKPT_PATH, device=device)
+    registry = SearcherRegistry(KF_INDEX_PATHS, METADATA_DB_PATH, CKPT_PATHS, device=device)
+
+    available = registry.available()
+    unavailable = [m for m in KF_INDEX_PATHS if m not in available]
+    if unavailable:
+        print(f"warning: search disabled for {', '.join(unavailable)} (index or checkpoint missing)")
+    if not available:
+        print("warning: no search index found, /query will return 503")
+    else:
+        print(f"Search models available: {', '.join(available)} (loaded on first use, {device})")
+    return registry
 
 
 @asynccontextmanager
@@ -29,13 +32,12 @@ async def lifespan(app: FastAPI):
         db.init_schema()
 
     app.state.search_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="search")
-    app.state.searcher = app.state.search_pool.submit(build_searcher).result()
+    app.state.searchers = app.state.search_pool.submit(build_registry).result()
 
     yield
 
     print("Closing connections...")
-    if app.state.searcher is not None:
-        app.state.search_pool.submit(app.state.searcher.close).result()
+    app.state.search_pool.submit(app.state.searchers.close).result()
     app.state.search_pool.shutdown()
 
 app = FastAPI(

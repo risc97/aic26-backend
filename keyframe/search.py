@@ -4,12 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 
 import sys
-from models import C2Lip
-
+from models import load_encoder
 from db import Keyframe, MetadataDatabase
-
 from .ids import split_vector_id
 
 
@@ -27,13 +26,18 @@ def format_timestamp(ms: int) -> str:
 
 
 class KeyframeSearcher:
-    def __init__(self, index_path: Path, db_path: Path, ckpt: Path,
-                 device: str = "cuda"):
+    def __init__(self, index_path: Path, db_path: Path, model: str = "c2lip",
+                 ckpt: Path | None = None, device: str = "cuda"):
         from turbovec import IdMapIndex
 
         self.index = IdMapIndex.load(str(index_path))
         self.db = MetadataDatabase(db_path)
-        self.model = C2Lip(ckpt, device=device)
+        self.model_name = model
+        self.model = load_encoder(model, ckpt=ckpt, device=device)
+
+        # delete visual encoder
+        del self.model.model.visual
+        torch.cuda.empty_cache()
 
     def search(self, query: str, k: int = 20) -> list[SearchHit]:
         vec = np.ascontiguousarray(self.model.encode_texts([query]), dtype=np.float32)

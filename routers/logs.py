@@ -1,5 +1,5 @@
 from schemas import LogEntry, Item
-from config import LOG_DB_PATH
+from config import DEFAULT_MODEL, LOG_DB_PATH
 from fastapi import APIRouter
 import sqlite3
 import json
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS logs (
     query TEXT,
     result_limit INTEGER,
     mode TEXT,
+    model TEXT,
     results TEXT,
     total INTEGER
 );
@@ -23,6 +24,9 @@ CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
 
 def init_logs_schema(conn: sqlite3.Connection):
     conn.executescript(LOG_SCHEMA)
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(logs)")}
+    if "model" not in columns:
+        conn.execute("ALTER TABLE logs ADD COLUMN model TEXT")
     conn.commit()
 
 
@@ -53,10 +57,10 @@ class LogRepo:
 
     def create(self, entry: LogEntry):
         self.conn.execute(
-            "INSERT INTO logs (request_id, timestamp, query, result_limit, mode, results, total) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO logs (request_id, timestamp, query, result_limit, mode, model, results, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entry.request_id, entry.timestamp.strftime('%Y-%m-%d %H:%M:%S'), entry.query, entry.limit, entry.mode,
-                json.dumps([i.model_dump() for i in entry.results]), entry.total,
+                entry.model, json.dumps([i.model_dump() for i in entry.results]), entry.total,
             ),
         )
         self.conn.commit()
@@ -80,6 +84,7 @@ class LogRepo:
 def row_to_log(r: sqlite3.Row) -> LogEntry:
     return LogEntry(
         request_id=r["request_id"], query=r["query"], limit=r["result_limit"],
-        mode=r["mode"], results=[Item(**i) for i in json.loads(r["results"])],
+        mode=r["mode"], model=r["model"] or DEFAULT_MODEL,
+        results=[Item(**i) for i in json.loads(r["results"])],
         total=r["total"], timestamp=r["timestamp"],
     )

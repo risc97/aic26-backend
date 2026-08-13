@@ -1,15 +1,19 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Literal
 from datetime import datetime
+
+from config import DEFAULT_MODEL
+ModelName = Literal["c2lip", "siglip2"]
 
 class Item(BaseModel):
     keyframe_id: str
     video_id: str
-    
+
 class QueryRequest(BaseModel):
     query: str = Field(..., description="Truy vấn đoạn video cần tìm")
     limit: int = Field(100, description="Số lượng kết quả trả về")
     mode: str = Field("keyframe", description="Chế độ search")
+    model: ModelName = Field(DEFAULT_MODEL, description="Model dùng để search")
 
 class QueryResponse(BaseModel):
     results: List[Item] = Field(default_factory=list)
