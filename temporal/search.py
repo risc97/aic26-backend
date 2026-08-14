@@ -19,7 +19,7 @@ from typing import Callable, Sequence
 import numpy as np
 
 from .dp import align
-from .stages import build_allowlist, candidate_videos, flatten, pool, zscore
+from .stages import SENTINEL, build_allowlist, candidate_videos, flatten, pool, zscore
 from .types import Stage, StageMatch, TemporalHit, TemporalParams
 
 
@@ -76,7 +76,7 @@ def temporal_search(
     scores = pool(dense, owner, n_stages)
     for i in range(n_stages):
         rows = owner == i
-        reference = raw_scores[rows][raw_ids[rows] != np.uint64(-1)]
+        reference = raw_scores[rows][raw_ids[rows] != SENTINEL]
         scores[i] = zscore(scores[i], reference if reference.size else raw_scores[rows])
 
     # --- 3. align each candidate video --------------------------------------
