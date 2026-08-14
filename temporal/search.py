@@ -19,7 +19,8 @@ from typing import Callable, Sequence
 import numpy as np
 
 from .dp import align
-from .stages import SENTINEL, build_allowlist, candidate_videos, flatten, pool, zscore
+from .stages import (SENTINEL, build_allowlist, candidate_videos, flatten, pool,
+                     squash, zscore)
 from .types import Stage, StageMatch, TemporalHit, TemporalParams
 
 
@@ -78,6 +79,9 @@ def temporal_search(
         rows = owner == i
         reference = raw_scores[rows][raw_ids[rows] != SENTINEL]
         scores[i] = zscore(scores[i], reference if reference.size else raw_scores[rows])
+        if params.score_cap is not None:
+            # keep one runaway keyframe from outweighing the rest of the sequence
+            scores[i] = squash(scores[i], params.score_cap)
 
     # --- 3. align each candidate video --------------------------------------
     span = params.span_penalty / 60_000.0

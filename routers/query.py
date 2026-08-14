@@ -82,6 +82,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
         gaps=[Gap(**g.model_dump()) for g in request.gaps] if request.gaps else Gap(),
         skip_penalty=request.skip_penalty,
         max_skips=request.max_skips,
+        score_cap=request.score_cap,
         span_penalty=request.span_penalty,
     )
 

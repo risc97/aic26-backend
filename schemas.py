@@ -69,6 +69,10 @@ class TemporalQueryRequest(BaseModel):
         description="Số stage tối đa được phép bỏ qua; 0 = mọi stage phải khớp, null = không giới hạn",
     )
     skip_penalty: float = Field(0.5, description="Phạt khi một stage không khớp, trong giới hạn max_skips")
+    score_cap: float | None = Field(
+        None, gt=0,
+        description="Giới hạn điểm mỗi stage ở +-cap z-unit, tránh một keyframe lấn át cả chuỗi; null = không giới hạn",
+    )
     span_penalty: float = Field(0.0, description="Phạt theo z-unit trên mỗi phút độ dài chuỗi")
 
 class TemporalMatch(Item):

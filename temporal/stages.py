@@ -47,6 +47,21 @@ def zscore(values: np.ndarray, reference: np.ndarray) -> np.ndarray:
     return (values - float(reference.mean())) / (sd if sd > 1e-6 else 1.0)
 
 
+def squash(values: np.ndarray, cap: float) -> np.ndarray:
+    """Bound what one stage can contribute to the summed score.
+
+    The reference is the truncated top-k head, so its std is far tighter than
+    the corpus std and z-scores come out inflated with a heavy right tail. Left
+    unbounded, a single freak keyframe outscores three honest matches and the
+    ranking stops being about the sequence at all.
+
+    `cap * tanh(v / cap)` is the identity near zero and saturates at +-cap, so
+    it is monotone: within a stage nothing is reordered, only the weight a
+    runaway score carries into the sum across stages.
+    """
+    return cap * np.tanh(values / cap)
+
+
 def candidate_videos(scores, ids, owner, n_stages: int, params: TemporalParams,
                      on_note: Callable[[str], None]) -> list[str]:
     """Videos worth an exact rescore, ranked by summed per-stage best score."""
