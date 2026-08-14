@@ -11,8 +11,6 @@ from temporal import Gap, TemporalParams, temporal_search
 
 router = APIRouter(tags=["Query"])
 
-STRICT_SKIP_PENALTY = 1000.0  # far beyond any reachable score, so skips never win
-
 
 def _searcher(http_request: Request, model: str):
     """The pool plus a loaded searcher, or 503 if that model has no index."""
@@ -82,8 +80,8 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
     params = TemporalParams(
         candidate_k=request.candidate_k,
         gaps=[Gap(**g.model_dump()) for g in request.gaps] if request.gaps else Gap(),
-        skip_penalty=(STRICT_SKIP_PENALTY if request.require_all_stages
-                      else request.skip_penalty),
+        skip_penalty=request.skip_penalty,
+        max_skips=request.max_skips,
         span_penalty=request.span_penalty,
     )
 

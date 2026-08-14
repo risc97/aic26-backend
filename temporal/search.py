@@ -89,6 +89,7 @@ def temporal_search(
             block, ts, params.gap_for,
             skip_penalty=params.skip_penalty,
             span_penalty_ms=span,
+            max_skips=params.max_skips,
         )
         steps = path.tolist()
         matches = [

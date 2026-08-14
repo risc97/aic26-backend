@@ -63,8 +63,11 @@ class TemporalQueryRequest(BaseModel):
     gaps: List[GapSpec] | None = Field(
         None, description="Ràng buộc khoảng cách, một phần tử cho mỗi bước chuyển (len = len(stages) - 1)",
     )
-    require_all_stages: bool = Field(False, description="Bắt buộc mọi stage phải khớp")
-    skip_penalty: float = Field(0.5, description="Phạt khi một stage không khớp, bỏ qua nếu require_all_stages")
+    max_skips: int | None = Field(
+        0, ge=0,
+        description="Số stage tối đa được phép bỏ qua; 0 = mọi stage phải khớp, null = không giới hạn",
+    )
+    skip_penalty: float = Field(0.5, description="Phạt khi một stage không khớp, trong giới hạn max_skips")
     span_penalty: float = Field(0.0, description="Phạt theo z-unit trên mỗi phút độ dài chuỗi")
 
 class TemporalMatch(Item):

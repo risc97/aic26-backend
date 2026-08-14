@@ -29,6 +29,7 @@ class TemporalParams:
     min_stages: int | None = None # video kept if it hits >= min_stages
     gaps: Gap | list[Gap] = field(default_factory=Gap) # one shared, or one per transition
     skip_penalty: float = 0.5 # z-units charged for leaving a stage unmatched
+    max_skips: int | None = 0 # hard cap on unmatched stages; 0 == all required
     span_penalty: float = 0.0 # z-units per minute of total sequence span
 
     def gap_for(self, stage: int) -> Gap:

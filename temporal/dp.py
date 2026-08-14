@@ -4,6 +4,10 @@
 processed, column 0 means "no stage has matched yet" and column j+1 means "the
 last stage that matched landed on keyframe j". The cursor is a sufficient
 summary of the past, which is what keeps this linear instead of exponential.
+
+With `max_skips` set, the cursor alone is no longer sufficient -- how many
+stages were skipped to reach it now matters -- so `dp` grows a second axis, one
+layer per skip count. Matching stays inside a layer; skipping moves up one.
 """
 from __future__ import annotations
 
@@ -69,46 +73,68 @@ def _best_predecessor(dp, ts, gap, span):
 
 
 def align(S, ts, gap_of: Callable[[int], Gap], *,
-          skip_penalty: float = 0.5, span_penalty_ms: float = 0.0):
+          skip_penalty: float = 0.5, span_penalty_ms: float = 0.0,
+          max_skips: int | None = None):
     """Best strictly-increasing assignment of stages to keyframes.
 
-    S      -- (M, N) normalized similarity, S[i, j] = stage i against keyframe j
-    ts     -- (N,) keyframe timestamps in ms, ascending
-    gap_of -- stage index -> the Gap guarding arrival at that stage
+    S         -- (M, N) normalized similarity, S[i, j] = stage i vs keyframe j
+    ts        -- (N,) keyframe timestamps in ms, ascending
+    gap_of    -- stage index -> the Gap guarding arrival at that stage
+    max_skips -- hard cap on unmatched stages; None leaves it uncapped, and
+                 `skip_penalty` alone decides. 0 demands every stage match.
 
     Returns (score, path); path[i] is the keyframe index matched to stage i,
-    or -1 when that stage was skipped.
+    or -1 when that stage was skipped. When the cap makes every alignment
+    impossible, the score is -inf and no stage is matched.
     """
     M, N = S.shape
-    dp = np.full(N + 1, NEG)
-    dp[0] = 0.0
-    parent = np.zeros((M, N + 1), dtype=np.int32)
-    matched = np.zeros((M, N + 1), dtype=bool)
+    capped = max_skips is not None
+    layers = min(max_skips, M) + 1 if capped else 1
+
+    dp = np.full((layers, N + 1), NEG)
+    dp[0, 0] = 0.0  # nothing matched, nothing skipped
+    parent = np.zeros((M, layers, N + 1), dtype=np.int32)
+    matched = np.zeros((M, layers, N + 1), dtype=bool)
+    stay = np.arange(N + 1, dtype=np.int32)
 
     for i in range(M):
-        # option A -- skip stage i, cursor stays where it was
-        cur = dp - skip_penalty
-        par = np.arange(N + 1, dtype=np.int32)
+        cur = np.full((layers, N + 1), NEG)
+        par = np.zeros((layers, N + 1), dtype=np.int32)
+        for s in range(layers):
+            # option A -- skip stage i: cursor stays put, one more skip spent.
+            # Uncapped, there is only layer 0 and a skip stays inside it.
+            src = s - 1 if capped else s
+            if src >= 0:
+                cur[s] = dp[src] - skip_penalty
+                par[s] = stay
 
-        # option B -- match stage i at keyframe j, advancing the cursor
-        best_val, best_col = _best_predecessor(dp, ts, gap_of(i), span_penalty_ms)
-        cand = S[i] + best_val
-        take = cand > cur[1:]
+            # option B -- match stage i at keyframe j, advancing the cursor
+            best_val, best_col = _best_predecessor(dp[s], ts, gap_of(i),
+                                                   span_penalty_ms)
+            cand = S[i] + best_val
+            take = cand > cur[s, 1:]
 
-        cur[1:][take] = cand[take]
-        par[1:][take] = best_col[take]
+            cur[s, 1:][take] = cand[take]
+            par[s, 1:][take] = best_col[take]
+            matched[i, s, 1:] = take
 
-        matched[i, 1:] = take
         parent[i] = par
         dp = cur
 
-    end = int(np.argmax(dp))
+    layer, col = np.unravel_index(int(np.argmax(dp)), dp.shape)
+    best = float(dp[layer, col])
     path = np.full(M, -1, dtype=np.int64)
-    col = end
+    if best <= NEG / 2:  # e.g. max_skips=0 with fewer keyframes than stages
+        return float("-inf"), path
+
+    layer, col = int(layer), int(col)
     for i in range(M - 1, -1, -1):
         # a skip and a match can land on the same column, so `matched` is what
         # separates "stage i stopped here" from "stage i was passed over"
-        if matched[i, col]:
+        hit = bool(matched[i, layer, col])
+        if hit:
             path[i] = col - 1
-        col = int(parent[i, col])
-    return float(dp[end]), path
+        col = int(parent[i, layer, col])
+        if not hit and capped:
+            layer -= 1  # a skip arrived from one layer down
+    return best, path
