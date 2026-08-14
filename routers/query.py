@@ -39,7 +39,7 @@ def query(request: QueryRequest, http_request: Request):
     hits = pool.submit(searcher.search, request.query, request.limit).result()
 
     results = [
-        Item(keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id)
+        Item(keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id, score=hit.score)
         for hit in hits
     ]
     total = len(results)
@@ -123,7 +123,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
             limit=request.limit,
             mode="temporal",
             model=request.model,
-            results=[Item(video_id=m.video_id, keyframe_id=m.keyframe_id)
+            results=[Item(video_id=m.video_id, keyframe_id=m.keyframe_id, score=m.score)
                      for item in results for m in item.matches],
             total=len(results),
         ))
