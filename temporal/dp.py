@@ -1,140 +1,142 @@
-"""The sequence alignment DP. Pure numpy -- no index, no database, no model.
+"""The sequence alignment DP using backward DP & sliding window max.
 
-`dp` is indexed by *time cursor*, not by stage. After stages 0..i have been
-processed, column 0 means "no stage has matched yet" and column j+1 means "the
-last stage that matched landed on keyframe j". The cursor is a sufficient
-summary of the past, which is what keeps this linear instead of exponential.
-
-With `max_skips` set, the cursor alone is no longer sufficient -- how many
-stages were skipped to reach it now matters -- so `dp` grows a second axis, one
-layer per skip count. Matching stays inside a layer; skipping moves up one.
+Ref: temporal/desc.md
+Supports both strict sequence alignment and skip-layer alignment.
 """
 from __future__ import annotations
 
-from collections import deque
 from typing import Callable
-
 import numpy as np
 
+from .sliding_window import sliding_window_max
 from .types import Gap
 
 NEG = -1e18
 
 
-def _best_predecessor(dp, ts, gap, span):
-    """For each keyframe j, the best dp column to arrive from.
-
-    Legal predecessors are the sentinel (always -- a stage may start the
-    sequence) and any earlier keyframe satisfying every `gap` bound. The span
-    penalty is folded in via
-    `dp[j'] - span * (ts[j] - ts[j'])  ==  (dp[j'] + span*ts[j']) - span*ts[j]`,
-    turning a per-pair cost into a constant offset so a plain sliding-window
-    max works.
-
-    Both window edges move forward monotonically as j grows, so each frame is
-    admitted once and evicted once -- O(n) for the whole stage.
-    """
+def _compute_bounds(ts: np.ndarray, gap: Gap) -> tuple[np.ndarray, np.ndarray]:
+    """Computes monotonic l_bounds and r_bounds for keyframes ts under Gap constraints."""
     n = ts.shape[0]
-    aug = dp[1:] + span * ts
-    best_val = np.full(n, NEG)
-    best_col = np.zeros(n, dtype=np.int32)
+    l_bounds = np.empty(n, dtype=np.int64)
+    r_bounds = np.empty(n, dtype=np.int64)
 
-    min_frames = max(1, gap.min_frames)  # two stages may never share a keyframe
-    window: deque[int] = deque()  # keyframe indices ascending, aug descending
-    admitted = 0                  # next frame not yet eligible
+    min_frames = max(1, gap.min_frames)
+    max_frames = gap.max_frames if gap.max_frames is not None else n - 1
+    min_gap_ms = gap.min_gap_ms
+    max_gap_ms = gap.max_gap_ms
 
     for j in range(n):
-        # admit frames now far enough behind j; both bounds only ever relax
-        newest, latest_ts = j - min_frames, ts[j] - gap.min_gap_ms
-        while admitted <= newest and ts[admitted] <= latest_ts:
-            while window and aug[window[-1]] <= aug[admitted]:
-                window.pop()
-            window.append(admitted)
-            admitted += 1
+        # 1. Min frame & min time bound
+        min_k_frame = j + min_frames
+        min_k_ts = int(np.searchsorted(ts, ts[j] + min_gap_ms, side='left'))
+        l_j = max(min_k_frame, min_k_ts)
 
-        # drop frames now too far behind j
-        if gap.max_frames is not None:
-            oldest = j - gap.max_frames
-            while window and window[0] < oldest:
-                window.popleft()
-        if gap.max_gap_ms is not None:
-            bound = ts[j] - gap.max_gap_ms
-            while window and ts[window[0]] < bound:
-                window.popleft()
+        # 2. Max frame & max time bound
+        max_k_frame = j + max_frames
+        if max_gap_ms is not None:
+            max_k_ts = int(np.searchsorted(ts, ts[j] + max_gap_ms, side='right')) - 1
+        else:
+            max_k_ts = n - 1
 
-        if window:
-            k = window[0]  # deque invariants put the window maximum at the front
-            best_val[j] = aug[k] - span * ts[j]
-            best_col[j] = k + 1
-        if dp[0] > best_val[j]:  # starting fresh from the sentinel
-            best_val[j] = dp[0]
-            best_col[j] = 0
-    return best_val, best_col
+        r_j = min(max_k_frame, max_k_ts)
+        
+        l_bounds[j] = l_j
+        r_bounds[j] = r_j
+
+    # Enforce monotonicity across j
+    for j in range(1, n):
+        if l_bounds[j] < l_bounds[j - 1]:
+            l_bounds[j] = l_bounds[j - 1]
+        if r_bounds[j] < r_bounds[j - 1]:
+            r_bounds[j] = r_bounds[j - 1]
+
+    return l_bounds, r_bounds
 
 
-def align(S, ts, gap_of: Callable[[int], Gap], *,
-          skip_penalty: float = 0.5, span_penalty_ms: float = 0.0,
-          max_skips: int | None = None):
-    """Best strictly-increasing assignment of stages to keyframes.
+def align(
+    S: np.ndarray,
+    ts: np.ndarray,
+    gap_of: Callable[[int], Gap],
+    *,
+    skip_penalty: float = 0.5,
+    span_penalty_ms: float = 0.0,
+    max_skips: int | None = None,
+) -> tuple[float, np.ndarray]:
+    """Best strictly-increasing assignment of stages to keyframes via backward DP.
 
     S         -- (M, N) normalized similarity, S[i, j] = stage i vs keyframe j
     ts        -- (N,) keyframe timestamps in ms, ascending
-    gap_of    -- stage index -> the Gap guarding arrival at that stage
-    max_skips -- hard cap on unmatched stages; None leaves it uncapped, and
-                 `skip_penalty` alone decides. 0 demands every stage match.
+    gap_of    -- stage index -> Gap guarding arrival at that stage
+    max_skips -- max allowed skipped stages (0 or None)
 
-    Returns (score, path); path[i] is the keyframe index matched to stage i,
-    or -1 when that stage was skipped. When the cap makes every alignment
-    impossible, the score is -inf and no stage is matched.
+    Returns (score, path) tuple.
     """
     M, N = S.shape
     capped = max_skips is not None
     layers = min(max_skips, M) + 1 if capped else 1
 
-    dp = np.full((layers, N + 1), NEG)
-    dp[0, 0] = 0.0  # nothing matched, nothing skipped
-    parent = np.zeros((M, layers, N + 1), dtype=np.int32)
-    matched = np.zeros((M, layers, N + 1), dtype=bool)
-    stay = np.arange(N + 1, dtype=np.int32)
+    if N == 0 or M == 0:
+        return float("-inf"), np.full(M, -1, dtype=np.int64)
+
+    # F[i, s, j] = max score from stage i to M-1 with s skips remaining at frame j
+    F = np.full((M, layers, N), NEG, dtype=np.float64)
+    opt = np.full((M, layers, N), -1, dtype=np.int64)
+    is_skip = np.zeros((M, layers, N), dtype=bool)
+
+    # Base case: last stage (i = M - 1)
+    # Matching stage M - 1 at frame j
+    for s in range(layers):
+        F[M - 1, s] = S[M - 1] - span_penalty_ms * ts
+        
+        # Or skipping stage M - 1 if s > 0
+        if capped and s > 0:
+            skip_val = -skip_penalty
+            take_skip = skip_val > F[M - 1, s]
+            F[M - 1, s][take_skip] = skip_val
+            is_skip[M - 1, s][take_skip] = True
+
+    # Backward DP loop: i = M - 2 down to 0
+    for i in range(M - 2, -1, -1):
+        l_bounds, r_bounds = _compute_bounds(ts, gap_of(i + 1))
+
+        for s in range(layers):
+            # Option A: Match stage i at frame j
+            max_vals, opt_indices = sliding_window_max(F[i + 1, s], l_bounds, r_bounds)
+
+            valid = max_vals > NEG / 2
+            cand_match = np.full(N, NEG, dtype=np.float64)
+            cand_match[valid] = S[i, valid] + max_vals[valid]
+
+            F[i, s] = cand_match
+            opt[i, s] = opt_indices
+
+            # Option B: Skip stage i (consume 1 skip from s - 1)
+            if capped and s > 0:
+                cand_skip = F[i + 1, s - 1] - skip_penalty
+                take_skip = cand_skip > F[i, s]
+                F[i, s][take_skip] = cand_skip[take_skip]
+                is_skip[i, s][take_skip] = True
+
+    # Find optimal starting state at stage 0
+    best_layer, best_j = np.unravel_index(int(np.argmax(F[0])), F[0].shape)
+    best_score = float(F[0, best_layer, best_j])
+
+    if best_score <= NEG / 2:
+        return float("-inf"), np.full(M, -1, dtype=np.int64)
+
+    # Backtracking path
+    path = np.full(M, -1, dtype=np.int64)
+    curr_layer = int(best_layer)
+    curr_j = int(best_j)
 
     for i in range(M):
-        cur = np.full((layers, N + 1), NEG)
-        par = np.zeros((layers, N + 1), dtype=np.int32)
-        for s in range(layers):
-            # option A -- skip stage i: cursor stays put, one more skip spent.
-            # Uncapped, there is only layer 0 and a skip stays inside it.
-            src = s - 1 if capped else s
-            if src >= 0:
-                cur[s] = dp[src] - skip_penalty
-                par[s] = stay
+        skipped = bool(is_skip[i, curr_layer, curr_j])
+        if not skipped:
+            path[i] = curr_j
+            next_j = int(opt[i, curr_layer, curr_j])
+            curr_j = next_j if next_j >= 0 else curr_j
+        else:
+            path[i] = -1
+            curr_layer = max(0, curr_layer - 1)
 
-            # option B -- match stage i at keyframe j, advancing the cursor
-            best_val, best_col = _best_predecessor(dp[s], ts, gap_of(i),
-                                                   span_penalty_ms)
-            cand = S[i] + best_val
-            take = cand > cur[s, 1:]
-
-            cur[s, 1:][take] = cand[take]
-            par[s, 1:][take] = best_col[take]
-            matched[i, s, 1:] = take
-
-        parent[i] = par
-        dp = cur
-
-    layer, col = np.unravel_index(int(np.argmax(dp)), dp.shape)
-    best = float(dp[layer, col])
-    path = np.full(M, -1, dtype=np.int64)
-    if best <= NEG / 2:  # e.g. max_skips=0 with fewer keyframes than stages
-        return float("-inf"), path
-
-    layer, col = int(layer), int(col)
-    for i in range(M - 1, -1, -1):
-        # a skip and a match can land on the same column, so `matched` is what
-        # separates "stage i stopped here" from "stage i was passed over"
-        hit = bool(matched[i, layer, col])
-        if hit:
-            path[i] = col - 1
-        col = int(parent[i, layer, col])
-        if not hit and capped:
-            layer -= 1  # a skip arrived from one layer down
-    return best, path
+    return float(best_score + span_penalty_ms * ts[path[0] if path[0] >= 0 else 0]), path
