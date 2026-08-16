@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from db import MetadataDatabase
-from media import file_response
+from media.response import file_response
 from config import METADATA_DB_PATH
 router = APIRouter(tags=["Video"])
 
