@@ -47,7 +47,7 @@ pkgs.mkShell {
     if [ -f "requirements.txt" ]; then
       echo "Downloading requirements.txt..."
       # Using --prefer-binary prevents pip from trying to compile heavy ML packages from source
-      pip install --prefer-binary -r requirements.txt && touch .venv/.requirements-installed
+      pip install --prefer-binary -r requirements.txt
     fi
     
     echo "Environment done"

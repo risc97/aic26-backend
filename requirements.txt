@@ -2,11 +2,12 @@ fastapi[standard]
 uvicorn[standard]
 pydantic-settings
 
+huggingface_hub
 ffmpeg-python
 torch
 torchvision
 pillow
-numpy
+numpy>=2
 pandas
 tqdm
 opencv-python-headless
@@ -14,8 +15,8 @@ opencv-python-headless
 # C2LIP encoder
 open_clip_torch>=2.31
 timm>=1.0.15
+transformers<5
 sentencepiece
-huggingface_hub
 
 # vector index
 turbovec==0.8.0

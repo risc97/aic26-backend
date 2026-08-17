@@ -4,11 +4,11 @@ import open_clip
 
 from .base import Encoder
 
-MODEL_NAME = "ViT-SO400M-16-SigLIP2-512"
+MODEL_NAME = "ViT-B-16-SigLIP"
 PRETRAINED = "webli"
 
 
-class SigLip2(Encoder):
+class SigLIP(Encoder):
     MODEL_NAME = MODEL_NAME
 
     def _create_model_and_transforms(self, *, pretrained: bool = False):

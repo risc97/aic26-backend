@@ -1,13 +1,9 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
-
 import numpy as np
 import torch
-
-import sys
-from models import load_encoder
+from models import MODEL_CHOICES
 from db import Keyframe, MetadataDatabase
 from .ids import split_vector_id
 
@@ -26,18 +22,24 @@ def format_timestamp(ms: int) -> str:
 
 
 class KeyframeSearcher:
-    def __init__(self, index_path: Path, db_path: Path, model: str = "c2lip",
+    def __init__(self, index_path: Path, db_path: Path, model: str = "siglip",
                  ckpt: Path | None = None, device: str = "cuda"):
         from turbovec import IdMapIndex
 
         self.index = IdMapIndex.load(str(index_path))
         self.db = MetadataDatabase(db_path)
+        cls = MODEL_CHOICES[model]
+        self.model = cls(ckpt, device="cpu")
+        self._free_image_encoder()
         self.model_name = model
-        self.model = load_encoder(model, ckpt=ckpt, device=device)
+        self.model.to(device)
+        self.model.amp = device == "cuda"
 
-        # delete visual encoder
-        del self.model.model.visual
-        torch.cuda.empty_cache()
+    def _free_image_encoder(self):
+        inner = getattr(self.model, "model", None)
+        if inner is not None and hasattr(inner, "visual"):
+            del inner.visual
+            torch.cuda.empty_cache()
 
     def encode_texts(self, texts: list[str]) -> np.ndarray:
         """Texts -> (n, dim) L2-normalized float32"""

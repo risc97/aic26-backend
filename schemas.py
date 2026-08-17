@@ -3,7 +3,7 @@ from typing import List, Literal
 from datetime import datetime
 
 from config import DEFAULT_MODEL
-ModelName = Literal["c2lip", "siglip2"]
+ModelName = Literal["siglip", "siglip2"]
 
 class Item(BaseModel):
     keyframe_id: str
