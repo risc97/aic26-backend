@@ -84,6 +84,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
         max_skips=request.max_skips,
         score_cap=request.score_cap,
         span_penalty=request.span_penalty,
+        beta=request.beta,
     )
 
     request_id = str(uuid.uuid4())

@@ -61,6 +61,7 @@ def align(
     skip_penalty: float = 0.5,
     span_penalty_ms: float = 0.0,
     max_skips: int | None = None,
+    beta: float | None = None,
 ) -> tuple[float, np.ndarray]:
     """Best strictly-increasing assignment of stages to keyframes via backward DP.
 
@@ -77,6 +78,10 @@ def align(
 
     if N == 0 or M == 0:
         return float("-inf"), np.full(M, -1, dtype=np.int64)
+
+    # Optional log(1 + beta * sim) transformation
+    if beta is not None and beta > 0:
+        S = np.log1p(np.maximum(-0.999, beta * S))
 
     # F[i, s, j] = max score from stage i to M-1 with s skips remaining at frame j
     F = np.full((M, layers, N), NEG, dtype=np.float64)

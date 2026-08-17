@@ -32,6 +32,7 @@ class TemporalParams:
     max_skips: int | None = 0 # hard cap on unmatched stages; 0 == all required
     score_cap: float | None = None # saturate each stage at +-cap z-units; None == unbounded
     span_penalty: float = 0.0 # z-units per minute of total sequence span
+    beta: float | None = None # parameter for log(1 + beta * sim) transformation; None == no transformation
 
     def gap_for(self, stage: int) -> Gap:
         """Constraint on arriving at `stage` from the previously matched stage.

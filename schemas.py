@@ -74,6 +74,10 @@ class TemporalQueryRequest(BaseModel):
         description="Giới hạn điểm mỗi stage ở +-cap z-unit, tránh một keyframe lấn át cả chuỗi; null = không giới hạn",
     )
     span_penalty: float = Field(0.0, description="Phạt theo z-unit trên mỗi phút độ dài chuỗi")
+    beta: float | None = Field(
+        None, gt=0,
+        description="Tham số beta cho biến đổi log(1 + beta * sim); null = không áp dụng",
+    )
 
 class TemporalMatch(Item):
     stage: int
