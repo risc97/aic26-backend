@@ -41,14 +41,6 @@ def query(request: QueryRequest, http_request: Request):
     # calling keyframe/search.py: def search(self, query: str, k: int = 20) -> list[SearchHit]
     hits = pool.submit(searcher.search, request.query, request.limit).result()
 
-    fps_cache: dict[str, float] = {}
-
-    def video_fps(video_id: str) -> float:
-        if video_id not in fps_cache:
-            video = searcher.db.videos.get(video_id)
-            fps_cache[video_id] = video.fps if video else 0.0
-        return fps_cache[video_id]
-
     if request.mode == "transcript_semantic":
         results = [
             TranscriptItem(
@@ -60,7 +52,7 @@ def query(request: QueryRequest, http_request: Request):
                 keyframes=[
                     Item(
                         keyframe_id=kf.keyframe_id, video_id=kf.video_id, timestamp_ms=kf.timestamp_ms,
-                        frame_idx=kf.frame_idx, video_fps=video_fps(kf.video_id),
+                        frame_idx=kf.frame_idx, video_fps=hit.video_fps,
                     ) for kf in hit.keyframes
                 ],
             ) for hit in hits
@@ -69,7 +61,7 @@ def query(request: QueryRequest, http_request: Request):
         results = [
             Item(
                 keyframe_id=keyframe.keyframe_id, video_id=keyframe.video_id, timestamp_ms=keyframe.timestamp_ms,
-                frame_idx=keyframe.frame_idx, video_fps=video_fps(keyframe.video_id),
+                frame_idx=keyframe.frame_idx, video_fps=hit.video_fps,
             )
             for hit in hits
             for keyframe in (hit.keyframes if hasattr(hit, "keyframes") else [hit.keyframe])

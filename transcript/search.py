@@ -13,6 +13,7 @@ class TranscriptHit:
     score: float
     transcript: Transcript
     keyframes: list[Keyframe] = field(default_factory=list)
+    video_fps: float = 0.0
 
 
 class TranscriptSearcher:
@@ -50,7 +51,11 @@ class TranscriptSearcher:
                 start_ms=transcript.time_start_ms,
                 end_ms=transcript.time_end_ms,
             )
-            hits.append(TranscriptHit(len(hits) + 1, float(score), transcript, keyframes))
+            video = self.db.videos.get(video_id)
+            hits.append(TranscriptHit(
+                len(hits) + 1, float(score), transcript, keyframes,
+                video.fps if video else 0.0,
+            ))
         return hits
 
     def close(self) -> None:

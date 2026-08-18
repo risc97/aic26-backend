@@ -13,6 +13,7 @@ class SearchHit:
     rank: int
     score: float
     keyframe: Keyframe
+    video_fps: float
 
 
 def format_timestamp(ms: int) -> str:
@@ -55,12 +56,20 @@ class KeyframeSearcher:
         found = self.db.keyframes.get_many(keys)
         by_key = {(kf.video_id, kf.keyframe_id): kf for kf in found}
 
+        fps_cache: dict[str, float] = {}
+
+        def video_fps(video_id: str) -> float:
+            if video_id not in fps_cache:
+                video = self.db.videos.get(video_id)
+                fps_cache[video_id] = video.fps if video else 0.0
+            return fps_cache[video_id]
+
         hits = []
         for score, key in zip(scores, keys):
             keyframe = by_key.get(key)
             if keyframe is None:
                 continue
-            hits.append(SearchHit(len(hits) + 1, float(score), keyframe))
+            hits.append(SearchHit(len(hits) + 1, float(score), keyframe, video_fps(keyframe.video_id)))
         return hits
 
     def close(self) -> None:
