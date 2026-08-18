@@ -5,7 +5,7 @@ from datetime import datetime
 
 from config import DEFAULT_MODEL
 ModelName = Literal["siglip", "siglip2", "gte"]
-SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact"]
+SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact", "temporal"]
 
 class Item(BaseModel):
     keyframe_id: str
@@ -21,6 +21,19 @@ class TranscriptItem(BaseModel):
     time_start_ms: int
     time_end_ms: int
     keyframes: List[Item]
+
+class TemporalMatch(Item):
+    stage: int
+    query: str
+    score: float
+    timestamp_ms: int
+
+class TemporalItem(BaseModel):
+    rank: int
+    video_id: str
+    score: float
+    matches: List[TemporalMatch] = Field(default_factory=list)
+    skipped_stages: List[int] = Field(default_factory=list)
 
 
 class QueryRequest(BaseModel):
@@ -47,7 +60,7 @@ class QueryRequest(BaseModel):
         return self
 
 class QueryResponse(BaseModel):
-    results: List[Item] | List[TranscriptItem] = Field(default_factory=list)
+    results: List[Item] | List[TranscriptItem] | List[TemporalItem] = Field(default_factory=list)
     total: int = 0
 
 class LogEntry(QueryRequest, QueryResponse):
@@ -89,19 +102,6 @@ class TemporalQueryRequest(BaseModel):
         None, gt=0,
         description="Tham số beta cho biến đổi log(1 + beta * sim); null = không áp dụng",
     )
-
-class TemporalMatch(Item):
-    stage: int
-    query: str
-    score: float
-    timestamp_ms: int
-
-class TemporalItem(BaseModel):
-    rank: int
-    video_id: str
-    score: float
-    matches: List[TemporalMatch] = Field(default_factory=list)
-    skipped_stages: List[int] = Field(default_factory=list)
 
 class TemporalQueryResponse(BaseModel):
     results: List[TemporalItem] = Field(default_factory=list)

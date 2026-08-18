@@ -31,6 +31,11 @@ def _searcher(http_request: Request, mode: str, model: str):
 
 @router.post("", response_model=QueryResponse)
 def query(request: QueryRequest, http_request: Request):
+    if request.mode == "temporal":
+        # 'temporal' exists so the shared log table can hold it; it is not a
+        # /query mode -- a sequence of stages does not fit QueryRequest.
+        raise HTTPException(status_code=422, detail="mode 'temporal' is served by POST /query/temporal")
+
     if request.mode == "transcript_semantic":
         model = TRANSCRIPT_MODEL
     else:
@@ -154,7 +159,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
             limit=request.limit,
             mode="temporal",
             model=request.model,
-            results=[m for item in results for m in item.matches],
+            results=results,
             total=len(results),
         ))
 
