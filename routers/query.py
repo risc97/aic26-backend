@@ -28,10 +28,11 @@ def query(request: QueryRequest, http_request: Request):
     request_id = str(uuid.uuid4())
     timestamp = datetime.now()
 
+    # calling keyframe/search.py: def search(self, query: str, k: int = 20) -> list[SearchHit]
     hits = pool.submit(searcher.search, request.query, request.limit).result()
 
     results = [
-        Item(keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id)
+        Item(keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id, timestamp_ms=hit.keyframe.timestamp_ms)
         for hit in hits
     ]
     total = len(results)
