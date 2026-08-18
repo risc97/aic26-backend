@@ -10,7 +10,7 @@ VIDEOS_DB_PATH = DATA_PATH / "videos"
 KF_INDEX_PATH = DATA_PATH / "index"
 CKPT_PATH = DATA_PATH / "checkpoints" / "c2lip.pt"
 
-DEFAULT_MODEL = "c2lip"
+DEFAULT_MODEL = "siglip2"
 KF_INDEX_PATHS = {
     "c2lip": KF_INDEX_PATH / "c2lip-keyframes.tvim",
     "siglip2": KF_INDEX_PATH / "siglip2-keyframes.tvim",
