@@ -7,6 +7,7 @@ METADATA_DB_PATH = DATA_PATH / "metadata.db"
 KEYFRAMES_DB_PATH = DATA_PATH / "keyframes"
 VIDEOS_DB_PATH = DATA_PATH / "videos"
 SCENES_DB_PATH = DATA_PATH / "staging"
+TRANSCRIPTS_DB_PATH = DATA_PATH / "transcripts"
 KF_INDEX_PATH = DATA_PATH / "index"
 CKPT_PATH = DATA_PATH / "checkpoints" / "c2lip.pt"
 
@@ -18,6 +19,10 @@ KF_INDEX_PATHS = {
 CKPT_PATHS = {
     "siglip": CKPT_PATH,
     "siglip2": None,
+}
+
+TRANSCRIPT_INDEX_PATHS = {
+    "gte": KF_INDEX_PATH / "gte-transcripts.tvim",
 }
 
 LOG_DB_PATH = "logs.db"

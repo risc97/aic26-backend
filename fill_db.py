@@ -8,16 +8,39 @@ from db import MetadataDatabase
 from media.keyframes import find_keyframes
 from media.probe import probe_video
 from media.scenes import read_scenes, select_frames
+from media.transcripts import find_transcript, read_transcript
 from media.videos import find_videos
 from config import (METADATA_DB_PATH, VIDEOS_DB_PATH, SCENES_DB_PATH, KEYFRAMES_DB_PATH,
-                    KEYFRAME_MODE, stored_path)
+                    TRANSCRIPTS_DB_PATH, KEYFRAME_MODE, stored_path)
 
 SCENES_SUFFIX = ".scenes.txt"
 
 
+def fill_transcript(db: MetadataDatabase, video_id: str, transcripts_dir: Path,
+                    force: bool) -> None:
+    """Rebuild one video's transcript rows from its transcript CSV, if any."""
+    transcript_file = find_transcript(transcripts_dir, video_id)
+    if transcript_file is None:
+        print(f"[{video_id}] no transcript at "
+              f"{transcripts_dir / (video_id + '.csv')}, skipping transcript")
+        return
+
+    rows = read_transcript(transcript_file)
+    if not force and db.transcripts.count_by_video(video_id) == len(rows):
+        print(f"[{video_id}] transcript already in the database, skipping")
+        return
+
+    db.transcripts.delete_by_video(video_id)
+    db.transcripts.create_many([
+        (video_id, f"{i:04d}", time_start_ms, time_end_ms, text)
+        for i, (time_start_ms, time_end_ms, text) in enumerate(rows)
+    ])
+    print(f"[{video_id}] stored {len(rows)} transcript rows")
+
+
 def fill_video(db: MetadataDatabase, video_id: str, video_path: Path,
-               scenes_file: Path, keyframes_dir: Path, force: bool,
-               mode: str = KEYFRAME_MODE) -> bool:
+               scenes_file: Path, keyframes_dir: Path, transcripts_dir: Path,
+               force: bool, mode: str = KEYFRAME_MODE) -> bool:
     """Rebuild one video's rows from its keyframes, scenes and the video"""
     images = find_keyframes(keyframes_dir, video_id)
     if not images:
@@ -29,6 +52,7 @@ def fill_video(db: MetadataDatabase, video_id: str, video_path: Path,
 
     if not force and db.keyframes.count_by_video(video_id) == len(images):
         print(f"[{video_id}] already in the database, skipping")
+        fill_transcript(db, video_id, transcripts_dir, force)
         return True
 
     kept = select_frames(read_scenes(scenes_file), mode)
@@ -56,6 +80,8 @@ def fill_video(db: MetadataDatabase, video_id: str, video_path: Path,
 
     print(f"[{video_id}] stored {len(images)} keyframes and {len(segments)} "
           f"segments ({fps:.3f} fps)")
+
+    fill_transcript(db, video_id, transcripts_dir, force)
     return True
 
 
@@ -65,6 +91,7 @@ def main() -> int:
     parser.add_argument("--videos-dir", type=Path, default=VIDEOS_DB_PATH)
     parser.add_argument("--scenes-dir", type=Path, default=SCENES_DB_PATH)
     parser.add_argument("--keyframes-dir", type=Path, default=KEYFRAMES_DB_PATH)
+    parser.add_argument("--transcripts-dir", type=Path, default=TRANSCRIPTS_DB_PATH)
     parser.add_argument("--video", action="append", metavar="VIDEO_ID",
                         help="only store this video id (repeatable)")
     parser.add_argument("--mode", choices=("left", "mid", "right"),
@@ -90,7 +117,8 @@ def main() -> int:
         for video_id, video_path in videos.items():
             scenes_file = args.scenes_dir / f"{video_id}{SCENES_SUFFIX}"
             if not fill_video(db, video_id, video_path, scenes_file,
-                              args.keyframes_dir, args.force, mode=args.mode):
+                              args.keyframes_dir, args.transcripts_dir,
+                              args.force, mode=args.mode):
                 failed.append(video_id)
 
     if failed:

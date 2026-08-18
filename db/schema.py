@@ -29,6 +29,16 @@ CREATE TABLE IF NOT EXISTS keyframes (
     UNIQUE(video_id, frame_idx)
 );
 CREATE INDEX IF NOT EXISTS idx_keyframes_video_time ON keyframes(video_id, timestamp_ms);
+
+CREATE TABLE IF NOT EXISTS transcripts (
+    transcript_id TEXT NOT NULL,
+    video_id      TEXT NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    time_start_ms INTEGER NOT NULL,
+    time_end_ms   INTEGER NOT NULL,
+    text          TEXT NOT NULL,
+    PRIMARY KEY (video_id, transcript_id)
+);
+CREATE INDEX IF NOT EXISTS idx_transcripts_video_time ON transcripts(video_id, time_start_ms);
 """
 
 

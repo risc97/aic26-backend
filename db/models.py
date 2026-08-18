@@ -29,6 +29,13 @@ class Keyframe:
     image_path: str
     segment_id: int
 
+@dataclass
+class Transcript:
+    transcript_id: str
+    video_id: str
+    time_start_ms: int
+    time_end_ms: int
+    text: str
 
 def row_to_video(r: sqlite3.Row) -> Video:
     return Video(
@@ -49,4 +56,11 @@ def row_to_keyframe(r: sqlite3.Row) -> Keyframe:
         keyframe_id=r["keyframe_id"], video_id=r["video_id"],
         frame_idx=r["frame_idx"], timestamp_ms=r["timestamp_ms"],
         image_path=r["image_path"], segment_id=r["segment_id"],
+    )
+
+def row_to_transcript(r: sqlite3.Row) -> Transcript:
+    return Transcript(
+        transcript_id=r["transcript_id"], video_id=r["video_id"],
+        time_start_ms=r["time_start_ms"], time_end_ms=r["time_end_ms"],
+        text=r["text"],
     )
