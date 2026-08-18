@@ -7,7 +7,6 @@ import numpy as np
 import torch
 
 import sys
-from config import DEFAULT_MODEL
 from models import load_encoder
 from db import Keyframe, MetadataDatabase
 from .ids import split_vector_id
@@ -27,7 +26,7 @@ def format_timestamp(ms: int) -> str:
 
 
 class KeyframeSearcher:
-    def __init__(self, index_path: Path, db_path: Path, model: str = DEFAULT_MODEL,
+    def __init__(self, index_path: Path, db_path: Path, model: str = "c2lip",
                  ckpt: Path | None = None, device: str = "cuda"):
         from turbovec import IdMapIndex
 
