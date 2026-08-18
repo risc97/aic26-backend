@@ -1,4 +1,4 @@
-from schemas import LogEntry, Item
+from schemas import LogEntry, Item, TranscriptItem
 from config import DEFAULT_MODEL, LOG_DB_PATH
 from fastapi import APIRouter
 import sqlite3
@@ -82,9 +82,15 @@ class LogRepo:
 
 
 def row_to_log(r: sqlite3.Row) -> LogEntry:
+    results = []
+    if r["mode"] == "keyframe":
+        results = [Item(**i) for i in json.loads(r["results"])]
+    elif r["mode"] == "transcript_semantic":
+        results = [TranscriptItem(**i) for i in json.loads(r["results"])]
+
     return LogEntry(
         request_id=r["request_id"], query=r["query"], limit=r["result_limit"],
         mode=r["mode"], model=r["model"] or DEFAULT_MODEL,
-        results=[Item(**i) for i in json.loads(r["results"])],
+        results=results,
         total=r["total"], timestamp=r["timestamp"],
     )

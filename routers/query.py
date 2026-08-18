@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from schemas import Item, QueryRequest, QueryResponse, LogEntry
+from schemas import Item, QueryRequest, QueryResponse, LogEntry, TranscriptItem
 import uuid
 from datetime import datetime
 from routers.logs import LogDatabase
@@ -41,11 +41,27 @@ def query(request: QueryRequest, http_request: Request):
     # calling keyframe/search.py: def search(self, query: str, k: int = 20) -> list[SearchHit]
     hits = pool.submit(searcher.search, request.query, request.limit).result()
 
-    results = [
-        Item(keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id, timestamp_ms=hit.keyframe.timestamp_ms)
-        for hit in hits
-        for keyframe in (hit.keyframes if hasattr(hit, "keyframes") else [hit.keyframe])
-    ]
+    if request.mode == "transcript_semantic":
+        results = [
+            TranscriptItem(
+                video_id=hit.transcript.video_id,
+                transcript_id=hit.transcript.transcript_id,
+                text=hit.transcript.text,
+                time_start_ms=hit.transcript.time_start_ms,
+                time_end_ms=hit.transcript.time_end_ms,
+                keyframes=[
+                    Item(
+                        keyframe_id=kf.keyframe_id, video_id=kf.video_id, timestamp_ms=kf.timestamp_ms, frame_idx=kf.frame_idx
+                    ) for kf in hit.keyframes
+                ],
+            ) for hit in hits
+        ]
+    elif request.mode == "keyframe":
+        results = [
+            Item(keyframe_id=keyframe.keyframe_id, video_id=keyframe.video_id, timestamp_ms=keyframe.timestamp_ms, frame_idx=keyframe.frame_idx)
+            for hit in hits
+            for keyframe in (hit.keyframes if hasattr(hit, "keyframes") else [hit.keyframe])
+        ]
     total = len(results)
 
     with LogDatabase(LOG_DB_PATH) as db:
