@@ -19,7 +19,7 @@ class TranscriptItem(BaseModel):
     text: str
     time_start_ms: int
     time_end_ms: int
-    keyframes: List[TranscriptItem]
+    keyframes: List[Item]
 
 
 class QueryRequest(BaseModel):
