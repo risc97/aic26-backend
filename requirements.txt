@@ -5,6 +5,7 @@ pydantic-settings
 ffmpeg-python
 torch
 torchvision
+transformers
 pillow
 numpy
 pandas

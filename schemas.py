@@ -8,6 +8,7 @@ ModelName = Literal["c2lip", "siglip2"]
 class Item(BaseModel):
     keyframe_id: str
     video_id: str
+    timestamp_ms: int
 
 class QueryRequest(BaseModel):
     query: str = Field(..., description="Truy vấn đoạn video cần tìm")
