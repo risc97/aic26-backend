@@ -6,7 +6,6 @@ huggingface_hub
 ffmpeg-python
 torch
 torchvision
-transformers
 pillow
 numpy>=2
 pandas
