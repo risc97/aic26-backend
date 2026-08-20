@@ -37,6 +37,12 @@ class Transcript:
     time_end_ms: int
     text: str
 
+@dataclass
+class Ocr:
+    video_id: str
+    keyframe_id: str
+    text: str
+
 def row_to_video(r: sqlite3.Row) -> Video:
     return Video(
         video_id=r["video_id"], video_path=r["video_path"],
@@ -62,5 +68,11 @@ def row_to_transcript(r: sqlite3.Row) -> Transcript:
     return Transcript(
         transcript_id=r["transcript_id"], video_id=r["video_id"],
         time_start_ms=r["time_start_ms"], time_end_ms=r["time_end_ms"],
+        text=r["text"],
+    )
+
+def row_to_ocr(r: sqlite3.Row) -> Ocr:
+    return Ocr(
+        video_id=r["video_id"], keyframe_id=r["keyframe_id"],
         text=r["text"],
     )

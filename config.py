@@ -8,6 +8,7 @@ KEYFRAMES_DB_PATH = DATA_PATH / "keyframes"
 VIDEOS_DB_PATH = DATA_PATH / "videos"
 SCENES_DB_PATH = DATA_PATH / "staging"
 TRANSCRIPTS_DB_PATH = DATA_PATH / "transcripts"
+OCR_DB_PATH = DATA_PATH / "ocr"
 KF_INDEX_PATH = DATA_PATH / "index"
 CKPT_PATH = DATA_PATH / "checkpoints" / "c2lip.pt"
 

@@ -4,8 +4,9 @@ from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 import torch
 
-from registry import SearcherRegistry
+from registry import SearcherRegistry, TableSearcherRegistry
 from keyframe import KeyframeSearcher
+from ocr import OcrSearcher
 from transcript import TranscriptSearcher
 from config import (
     CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH,
@@ -43,6 +44,19 @@ def build_transcript_registry(device: str):
     return registry
 
 
+def build_table_registry(mode: str, table: str, searcher_cls):
+    """Registry for an FTS5 mode backed by one metadata table."""
+    registry = TableSearcherRegistry(METADATA_DB_PATH, table, searcher_cls)
+
+    count = registry.count()
+    if not count:
+        print(f"warning: table '{table}' is empty, mode='{mode}' will return 503 "
+              f"(run fill_db.py)")
+    else:
+        print(f"{mode} search available: {count} '{table}' rows (loaded on first use)")
+    return registry
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Connecting to databases...")
@@ -54,6 +68,8 @@ async def lifespan(app: FastAPI):
     app.state.searchers = {
         "keyframe": app.state.search_pool.submit(build_keyframe_registry, device).result(),
         "transcript_semantic": app.state.search_pool.submit(build_transcript_registry, device).result(),
+        "ocr_exact": app.state.search_pool.submit(
+            build_table_registry, "ocr_exact", "ocr", OcrSearcher).result(),
     }
 
     yield

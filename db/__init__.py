@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from .connection import connect, transaction
-from .models import Keyframe, Segment, Transcript, Video
+from .models import Keyframe, Ocr, Segment, Transcript, Video
 from .schema import init_schema
 from .segments import SegmentRepo
 from .keyframes import KeyframeRepo
+from .ocr import OCRRepo
 from .transcripts import TranscriptRepo
 from .videos import VideoRepo
 
@@ -19,6 +20,7 @@ class MetadataDatabase:
         self.segments = SegmentRepo(self.conn)
         self.keyframes = KeyframeRepo(self.conn)
         self.transcripts = TranscriptRepo(self.conn)
+        self.ocr = OCRRepo(self.conn)
 
     def init_schema(self) -> None:
         init_schema(self.conn)
@@ -36,4 +38,4 @@ class MetadataDatabase:
         self.close()
 
 
-__all__ = ["MetadataDatabase", "Video", "Segment", "Keyframe", "Transcript"]
+__all__ = ["MetadataDatabase", "Video", "Segment", "Keyframe", "Transcript", "Ocr"]

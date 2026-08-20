@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from schemas import Item, QueryRequest, QueryResponse, LogEntry, TranscriptItem, TemporalQueryRequest, TemporalQueryResponse, TemporalItem, TemporalMatch
+from schemas import Item, OcrItem, QueryRequest, QueryResponse, LogEntry, TranscriptItem, TemporalQueryRequest, TemporalQueryResponse, TemporalItem, TemporalMatch
 import uuid
 from datetime import datetime
 from routers.logs import LogDatabase
@@ -38,6 +38,8 @@ def query(request: QueryRequest, http_request: Request):
 
     if request.mode == "transcript_semantic":
         model = TRANSCRIPT_MODEL
+    elif request.mode == "ocr_exact":
+        model = None  # FTS5, no model involved
     else:
         model = request.model
 
@@ -47,7 +49,11 @@ def query(request: QueryRequest, http_request: Request):
     timestamp = datetime.now()
 
     # calling keyframe/search.py: def search(self, query: str, k: int = 20) -> list[SearchHit]
-    hits = pool.submit(searcher.search, request.query, request.limit).result()
+    if request.mode == "ocr_exact":
+        hits = pool.submit(searcher.search, request.query, request.limit,
+                           request.phrase).result()
+    else:
+        hits = pool.submit(searcher.search, request.query, request.limit).result()
 
     if request.mode == "transcript_semantic":
         results = [
@@ -63,6 +69,14 @@ def query(request: QueryRequest, http_request: Request):
                         frame_idx=kf.frame_idx, video_fps=hit.video_fps,
                     ) for kf in hit.keyframes
                 ],
+            ) for hit in hits
+        ]
+    elif request.mode == "ocr_exact":
+        results = [
+            OcrItem(
+                keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id,
+                timestamp_ms=hit.keyframe.timestamp_ms, frame_idx=hit.keyframe.frame_idx,
+                video_fps=hit.video_fps, text=hit.text, score=hit.score,
             ) for hit in hits
         ]
     elif request.mode == "keyframe":

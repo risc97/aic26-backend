@@ -5,7 +5,8 @@ from datetime import datetime
 
 from config import DEFAULT_MODEL
 ModelName = Literal["siglip", "siglip2", "gte"]
-SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact", "temporal"]
+SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact",
+                     "ocr_exact", "temporal"]
 
 class Item(BaseModel):
     keyframe_id: str
@@ -21,6 +22,10 @@ class TranscriptItem(BaseModel):
     time_start_ms: int
     time_end_ms: int
     keyframes: List[Item]
+
+class OcrItem(Item):
+    text: str
+    score: float
 
 class TemporalMatch(Item):
     stage: int
@@ -44,6 +49,11 @@ class QueryRequest(BaseModel):
         DEFAULT_MODEL,
         description="Model dùng để search",
     )
+    phrase: bool = Field(
+        False,
+        description="Chỉ dùng cho mode exact: True = các từ phải liền nhau đúng "
+                    "thứ tự ('sạt lở'), False = keyframe chứa đủ các từ ở bất kỳ đâu",
+    )
 
     @model_validator(mode="after")
     def validate_mode_and_model(self) -> "QueryRequest":
@@ -60,7 +70,7 @@ class QueryRequest(BaseModel):
         return self
 
 class QueryResponse(BaseModel):
-    results: List[Item] | List[TranscriptItem] | List[TemporalItem] = Field(default_factory=list)
+    results: List[Item] | List[TranscriptItem] | List[TemporalItem] | List[OcrItem] = Field(default_factory=list)
     total: int = 0
 
 class LogEntry(QueryRequest, QueryResponse):
