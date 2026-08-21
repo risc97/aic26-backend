@@ -1,12 +1,34 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from db import MetadataDatabase
 from media.response import file_response
 from config import METADATA_DB_PATH
+from schemas import Item, KeyframeListResponse
 
 router = APIRouter(tags=["Keyframe"])
 
 IMAGE_MAX_AGE = 60 * 60 * 24 * 30
+
+@router.get("/{video_id}/keyframes", response_model=KeyframeListResponse)
+def list_keyframes(
+    video_id: str,
+    start_ms: int | None = Query(None, ge=0, description="Lấy keyframe từ mốc này"),
+    end_ms: int | None = Query(None, ge=0, description="Lấy keyframe đến mốc này"),
+) -> KeyframeListResponse:
+    with MetadataDatabase(METADATA_DB_PATH) as db:
+        video = db.videos.get(video_id)
+        if video is None:
+            raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+        keyframes = db.keyframes.list_by_video(video_id, start_ms, end_ms)
+
+    items = [
+        Item(
+            keyframe_id=kf.keyframe_id, video_id=kf.video_id,
+            timestamp_ms=kf.timestamp_ms, frame_idx=kf.frame_idx, video_fps=video.fps,
+        )
+        for kf in keyframes
+    ]
+    return KeyframeListResponse(video_id=video_id, total=len(items), keyframes=items)
 
 
 @router.api_route(

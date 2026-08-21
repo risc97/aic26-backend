@@ -41,6 +41,12 @@ class TemporalItem(BaseModel):
     skipped_stages: List[int] = Field(default_factory=list)
 
 
+class KeyframeListResponse(BaseModel):
+    video_id: str
+    total: int = 0
+    keyframes: List[Item] = Field(default_factory=list)
+
+
 class QueryRequest(BaseModel):
     query: str = Field(..., description="Truy vấn đoạn video cần tìm")
     limit: int = Field(100, description="Số lượng kết quả trả về")
