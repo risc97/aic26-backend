@@ -56,6 +56,12 @@ class Encoder(nn.Module):
         with _suppress_root_logger():
             model, preprocess = self._create_model_and_transforms(pretrained=pretrained)
         if ckpt is not None:
+            model_keys = set(model.state_dict())
+            extra = sorted(set(sd) - model_keys)
+            if extra:
+                print(f"note: ignoring {len(extra)} checkpoint key(s) not in "
+                      f"{type(self).__name__}: {extra}")
+                sd = {k: v for k, v in sd.items() if k in model_keys}
             try:
                 model.load_state_dict(sd, strict=True)
             except RuntimeError as e:

@@ -4,7 +4,7 @@ from typing import List, Literal
 from datetime import datetime
 
 from config import DEFAULT_MODEL
-ModelName = Literal["siglip", "siglip2", "gte"]
+ModelName = Literal["siglip", "siglip2", "gte", "pe"]
 SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact",
                      "ocr_exact", "temporal"]
 
@@ -57,9 +57,9 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_mode_and_model(self) -> "QueryRequest":
-        if self.mode == "keyframe" and self.model not in ("siglip", "siglip2"):
+        if self.mode == "keyframe" and self.model not in ("siglip", "siglip2", "pe"):
             raise ValueError(
-                f"When mode is 'keyframe', model must be 'siglip' or 'siglip2', got '{self.model}'"
+                f"When mode is 'keyframe', model must be 'siglip', 'siglip2' or 'pe', got '{self.model}'"
             )
 
         if self.mode == "transcript_semantic" and self.model != "gte":

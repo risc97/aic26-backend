@@ -16,10 +16,12 @@ DEFAULT_MODEL = "siglip"
 KF_INDEX_PATHS = {
     "siglip": KF_INDEX_PATH / "siglip-keyframes.tvim",
     "siglip2": KF_INDEX_PATH / "siglip2-keyframes.tvim",
+    "pe": KF_INDEX_PATH / "pe-keyframes.tvim"
 }
 CKPT_PATHS = {
     "siglip": CKPT_PATH,
     "siglip2": None,
+    "pe": DATA_PATH / "checkpoints" / "PE-Core-L14-336_npc_xac_epoch_2.pt"
 }
 
 TRANSCRIPT_INDEX_PATHS = {
