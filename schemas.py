@@ -14,6 +14,7 @@ class Item(BaseModel):
     timestamp_ms: int
     frame_idx: int
     video_fps: float
+    score: float
 
 class TranscriptItem(BaseModel):
     video_id: str

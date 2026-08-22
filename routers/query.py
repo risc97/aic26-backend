@@ -66,7 +66,7 @@ def query(request: QueryRequest, http_request: Request):
                 keyframes=[
                     Item(
                         keyframe_id=kf.keyframe_id, video_id=kf.video_id, timestamp_ms=kf.timestamp_ms,
-                        frame_idx=kf.frame_idx, video_fps=hit.video_fps,
+                        frame_idx=kf.frame_idx, video_fps=hit.video_fps, score=hit.score,
                     ) for kf in hit.keyframes
                 ],
             ) for hit in hits
@@ -83,7 +83,7 @@ def query(request: QueryRequest, http_request: Request):
         results = [
             Item(
                 keyframe_id=keyframe.keyframe_id, video_id=keyframe.video_id, timestamp_ms=keyframe.timestamp_ms,
-                frame_idx=keyframe.frame_idx, video_fps=hit.video_fps,
+                frame_idx=keyframe.frame_idx, video_fps=hit.video_fps, score=hit.score,
             )
             for hit in hits
             for keyframe in (hit.keyframes if hasattr(hit, "keyframes") else [hit.keyframe])
