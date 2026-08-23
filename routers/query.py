@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
-from schemas import Item, OcrItem, QueryRequest, QueryResponse, LogEntry, TranscriptItem, TemporalQueryRequest, TemporalQueryResponse, TemporalItem, TemporalMatch
+from schemas import Item, OcrItem, LogEntry, TranscriptItem, TemporalQueryRequest, TemporalQueryResponse, TemporalItem, TemporalMatch
+from schemas import KeyframeQueryRequest, TranscriptQueryRequest, OcrQueryRequest, KeyframeQueryResponse, TranscriptQueryResponse, OcrQueryResponse
 import uuid
 from datetime import datetime
 from routers.logs import LogDatabase
@@ -28,86 +29,66 @@ def _searcher(http_request: Request, mode: str, model: str):
             ),
         )
 
-
-@router.post("", response_model=QueryResponse)
-def query(request: QueryRequest, http_request: Request):
-    if request.mode == "temporal":
-        # 'temporal' exists so the shared log table can hold it; it is not a
-        # /query mode -- a sequence of stages does not fit QueryRequest.
-        raise HTTPException(status_code=422, detail="mode 'temporal' is served by POST /query/temporal")
-
-    if request.mode == "transcript_semantic":
-        model = TRANSCRIPT_MODEL
-    elif request.mode == "ocr_exact":
-        model = None  # FTS5, no model involved
-    else:
-        model = request.model
-
-    pool, searcher = _searcher(http_request, request.mode, model)
-
+def _log(mode: str, model: str | None, query: str, limit: int, results: list) -> str:
     request_id = str(uuid.uuid4())
-    timestamp = datetime.now()
-
-    # calling keyframe/search.py: def search(self, query: str, k: int = 20) -> list[SearchHit]
-    if request.mode == "ocr_exact":
-        hits = pool.submit(searcher.search, request.query, request.limit,
-                           request.phrase).result()
-    else:
-        hits = pool.submit(searcher.search, request.query, request.limit).result()
-
-    if request.mode == "transcript_semantic":
-        results = [
-            TranscriptItem(
-                video_id=hit.transcript.video_id,
-                transcript_id=hit.transcript.transcript_id,
-                text=hit.transcript.text,
-                time_start_ms=hit.transcript.time_start_ms,
-                time_end_ms=hit.transcript.time_end_ms,
-                keyframes=[
-                    Item(
-                        keyframe_id=kf.keyframe_id, video_id=kf.video_id, timestamp_ms=kf.timestamp_ms,
-                        frame_idx=kf.frame_idx, video_fps=hit.video_fps, score=hit.score,
-                    ) for kf in hit.keyframes
-                ],
-            ) for hit in hits
-        ]
-    elif request.mode == "ocr_exact":
-        results = [
-            OcrItem(
-                keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id,
-                timestamp_ms=hit.keyframe.timestamp_ms, frame_idx=hit.keyframe.frame_idx,
-                video_fps=hit.video_fps, text=hit.text, score=hit.score,
-            ) for hit in hits
-        ]
-    elif request.mode == "keyframe":
-        results = [
-            Item(
-                keyframe_id=keyframe.keyframe_id, video_id=keyframe.video_id, timestamp_ms=keyframe.timestamp_ms,
-                frame_idx=keyframe.frame_idx, video_fps=hit.video_fps, score=hit.score,
-            )
-            for hit in hits
-            for keyframe in (hit.keyframes if hasattr(hit, "keyframes") else [hit.keyframe])
-        ]
-    total = len(results)
-
     with LogDatabase(LOG_DB_PATH) as db:
-        log_entry = LogEntry(
-            request_id=request_id,
-            timestamp=timestamp,
-            query=request.query,
-            limit=request.limit,
-            mode=request.mode,
-            model=model,
-            results=results,
-            total=total
-        )
-        db.logs.create(log_entry)
+        db.logs.create(LogEntry(
+            request_id=request_id, timestamp=datetime.now(), query=query,
+            limit=limit, mode=mode, model=model, results=results, total=len(results),
+        ))
+    return request_id
 
-    return QueryResponse(
-        results = results,
-        total = total
-    )
+@router.post("/keyframe", response_model=KeyframeQueryResponse)
+def query_keyframe(request: KeyframeQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "keyframe", request.model)
+    # calling keyframe/search.py: def search(self, query: str, k: int = 20) -> list[SearchHit]
+    hits = pool.submit(searcher.search, request.query, request.limit).result()
+    results = [
+        Item(
+            keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id,
+            timestamp_ms=hit.keyframe.timestamp_ms, frame_idx=hit.keyframe.frame_idx,
+            video_fps=hit.video_fps, score=hit.score,
+        ) for hit in hits
+    ]
+    request_id = _log("keyframe", request.model, request.query, request.limit, results)
+    return KeyframeQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))
 
+@router.post("/transcript", response_model=TranscriptQueryResponse)
+def query_transcript(request: TranscriptQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "transcript_semantic", request.model)
+    hits = pool.submit(searcher.search, request.query, request.limit).result()
+    results = [
+        TranscriptItem(
+            video_id=hit.transcript.video_id,
+            transcript_id=hit.transcript.transcript_id,
+            text=hit.transcript.text,
+            time_start_ms=hit.transcript.time_start_ms,
+            time_end_ms=hit.transcript.time_end_ms,
+            keyframes=[
+                Item(
+                    keyframe_id=kf.keyframe_id, video_id=kf.video_id,
+                    timestamp_ms=kf.timestamp_ms, frame_idx=kf.frame_idx,
+                    video_fps=hit.video_fps, score=hit.score,
+                ) for kf in hit.keyframes
+            ],
+        ) for hit in hits
+    ]
+    request_id = _log("transcript_semantic", request.model, request.query, request.limit, results)
+    return TranscriptQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))
+
+@router.post("/ocr", response_model=OcrQueryResponse)
+def query_ocr(request: OcrQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "ocr_exact", None)
+    hits = pool.submit(searcher.search, request.query, request.limit, request.phrase).result()
+    results = [
+        OcrItem(
+            keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id,
+            timestamp_ms=hit.keyframe.timestamp_ms, frame_idx=hit.keyframe.frame_idx,
+            video_fps=hit.video_fps, text=hit.text, score=hit.score,
+        ) for hit in hits
+    ]
+    request_id = _log("ocr_exact", None, request.query, request.limit, results)
+    return OcrQueryResponse(request_id=request_id, results=results, total=len(results))
 
 @router.post("/temporal", response_model=TemporalQueryResponse)
 def temporal_query(request: TemporalQueryRequest, http_request: Request):
@@ -164,17 +145,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
         for hit in hits
     ]
 
-    with LogDatabase(LOG_DB_PATH) as db:
-        # reuse the existing log table: the sequence flattens to one query string
-        db.logs.create(LogEntry(
-            request_id=request_id,
-            timestamp=timestamp,
-            query=" -> ".join(s.query for s in request.stages),
-            limit=request.limit,
-            mode="temporal",
-            model=request.model,
-            results=results,
-            total=len(results),
-        ))
-
-    return TemporalQueryResponse(results=results, total=len(results))
+    request_id = _log("temporal", request.model,
+                  " -> ".join(s.query for s in request.stages),
+                  request.limit, results)
+    return TemporalQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))

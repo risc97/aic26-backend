@@ -1,5 +1,5 @@
 from schemas import LogEntry, Item, OcrItem, TranscriptItem, TemporalItem
-from config import DEFAULT_MODEL, LOG_DB_PATH
+from config import LOG_DB_PATH
 from fastapi import APIRouter
 import sqlite3
 import json
@@ -94,7 +94,7 @@ def row_to_log(r: sqlite3.Row) -> LogEntry:
 
     return LogEntry(
         request_id=r["request_id"], query=r["query"], limit=r["result_limit"],
-        mode=r["mode"], model=r["model"] or DEFAULT_MODEL,
+        mode=r["mode"], model=r["model"],
         results=results,
         total=r["total"], timestamp=r["timestamp"],
     )

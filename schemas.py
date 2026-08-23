@@ -5,8 +5,9 @@ from datetime import datetime
 
 from config import DEFAULT_MODEL
 ModelName = Literal["siglip", "siglip2", "gte", "pe"]
-SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact",
-                     "ocr_exact", "temporal"]
+KeyframeModel = Literal["siglip", "siglip2", "pe"]
+TranscriptModel = Literal["gte"]
+SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact", "ocr_exact", "temporal"]
 
 class Item(BaseModel):
     keyframe_id: str
@@ -47,42 +48,52 @@ class KeyframeListResponse(BaseModel):
     total: int = 0
     keyframes: List[Item] = Field(default_factory=list)
 
-
 class QueryRequest(BaseModel):
     query: str = Field(..., description="Truy vấn đoạn video cần tìm")
     limit: int = Field(100, description="Số lượng kết quả trả về")
-    mode: SearchMode = Field("keyframe", description="Chế độ search")
-    model: ModelName | None = Field(
-        DEFAULT_MODEL,
-        description="Model dùng để search",
-    )
+
+class KeyframeQueryRequest(QueryRequest):
+    model: KeyframeModel = Field("siglip2", description="Model dùng để search")
+
+class TranscriptQueryRequest(QueryRequest):
+    model: TranscriptModel = Field("gte", description="Model dùng để search")
+
+class OcrQueryRequest(QueryRequest):
     phrase: bool = Field(
-        False,
-        description="Chỉ dùng cho mode exact: True = các từ phải liền nhau đúng "
-                    "thứ tự ('sạt lở'), False = keyframe chứa đủ các từ ở bất kỳ đâu",
-    )
-
-    @model_validator(mode="after")
-    def validate_mode_and_model(self) -> "QueryRequest":
-        if self.mode == "keyframe" and self.model not in ("siglip", "siglip2", "pe"):
-            raise ValueError(
-                f"When mode is 'keyframe', model must be 'siglip', 'siglip2' or 'pe', got '{self.model}'"
-            )
-
-        if self.mode == "transcript_semantic" and self.model != "gte":
-            raise ValueError(
-                f"When mode is 'transcript_semantic', model must be 'gte', got '{self.model}'"
-            )
-
-        return self
+            False,
+            description="Chỉ dùng cho mode exact: True = các từ phải liền nhau đúng "
+                        "thứ tự ('sạt lở'), False = keyframe chứa đủ các từ ở bất kỳ đâu",
+        )
 
 class QueryResponse(BaseModel):
-    results: List[Item] | List[TranscriptItem] | List[TemporalItem] | List[OcrItem] = Field(default_factory=list)
+    request_id: str
+    mode: SearchMode
+    model: ModelName | None = None
     total: int = 0
 
-class LogEntry(QueryRequest, QueryResponse):
+class KeyframeQueryResponse(QueryResponse):
+    mode: Literal["keyframe"] = "keyframe"
+    model: KeyframeModel
+    results: List[Item] = Field(default_factory=list)
+
+class TranscriptQueryResponse(QueryResponse):
+    mode: Literal["transcript_semantic"] = "transcript_semantic"
+    model: Literal["gte"] = "gte"
+    results: List[TranscriptItem] = Field(default_factory=list)
+
+class OcrQueryResponse(QueryResponse):
+    mode: Literal["ocr_exact"] = "ocr_exact"
+    results: List[OcrItem] = Field(default_factory=list)
+
+class LogEntry(BaseModel):
     request_id: str
     timestamp: datetime | None
+    query: str
+    limit: int
+    mode: SearchMode
+    model: ModelName | None = None
+    results: List[OcrItem] | List[TemporalItem] | List[TranscriptItem] | List[Item] = Field(default_factory=list)
+    total: int = 0
 
 class TemporalStage(BaseModel):
     query: str = Field(..., description="Sự kiện cần tìm ở bước này")
@@ -121,5 +132,5 @@ class TemporalQueryRequest(BaseModel):
     )
 
 class TemporalQueryResponse(BaseModel):
+    mode: Literal["temporal"] = "temporal"
     results: List[TemporalItem] = Field(default_factory=list)
-    total: int = 0
