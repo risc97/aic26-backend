@@ -16,7 +16,7 @@ class TranscriptHit:
     video_fps: float = 0.0
 
 
-class TranscriptSearcher:
+class TranscriptSemanticSearcher:
     def __init__(self, index_path: Path, db_path: Path, model: str = "gte",
                  ckpt: Path | None = None, device: str = "cuda"):
         from turbovec import IdMapIndex
@@ -61,7 +61,7 @@ class TranscriptSearcher:
     def close(self) -> None:
         self.db.close()
 
-    def __enter__(self) -> "TranscriptSearcher":
+    def __enter__(self) -> "TranscriptSemanticSearcher":
         return self
 
     def __exit__(self, *exc) -> None:

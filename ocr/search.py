@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from db import Keyframe, MetadataDatabase
-from .match import build_match
+from fts import build_match
 
 
 @dataclass
