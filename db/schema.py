@@ -31,14 +31,34 @@ CREATE TABLE IF NOT EXISTS keyframes (
 CREATE INDEX IF NOT EXISTS idx_keyframes_video_time ON keyframes(video_id, timestamp_ms);
 
 CREATE TABLE IF NOT EXISTS transcripts (
+    transcript_pk INTEGER PRIMARY KEY,
     transcript_id TEXT NOT NULL,
     video_id      TEXT NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
     time_start_ms INTEGER NOT NULL,
     time_end_ms   INTEGER NOT NULL,
     text          TEXT NOT NULL,
-    PRIMARY KEY (video_id, transcript_id)
+    UNIQUE (video_id, transcript_id)
 );
 CREATE INDEX IF NOT EXISTS idx_transcripts_video_time ON transcripts(video_id, time_start_ms);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
+    text,
+    content       = 'transcripts',
+    content_rowid = 'transcript_pk',
+    tokenize      = "unicode61 remove_diacritics 0"
+);
+CREATE TRIGGER IF NOT EXISTS transcripts_ai AFTER INSERT ON transcripts BEGIN
+    INSERT INTO transcripts_fts(rowid, text) VALUES (new.transcript_pk, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS transcripts_ad AFTER DELETE ON transcripts BEGIN
+    INSERT INTO transcripts_fts(transcripts_fts, rowid, text)
+        VALUES ('delete', old.transcript_pk, old.text);
+END;
+CREATE TRIGGER IF NOT EXISTS transcripts_au AFTER UPDATE ON transcripts BEGIN
+    INSERT INTO transcripts_fts(transcripts_fts, rowid, text)
+        VALUES ('delete', old.transcript_pk, old.text);
+    INSERT INTO transcripts_fts(rowid, text) VALUES (new.transcript_pk, new.text);
+END;
 
 CREATE TABLE IF NOT EXISTS ocr (
     ocr_id        INTEGER PRIMARY KEY,

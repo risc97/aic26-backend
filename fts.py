@@ -16,7 +16,7 @@ def build_match(query: str, phrase: bool = False) -> str | None:
 
     Every token is quoted, so the raw query can hold any punctuation.
     phrase=True keeps the words adjacent and in order ("sạt lở"); the default
-    requires all of them anywhere in the same keyframe.
+    requires all of them anywhere in the same row.
     """
     tokens = tokenize(query)
     if not tokens:

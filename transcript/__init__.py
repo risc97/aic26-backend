@@ -1,1 +1,2 @@
-from .search import TranscriptSearcher
+from .search import TranscriptHit, TranscriptSemanticSearcher
+from .exact import TranscriptExactSearcher

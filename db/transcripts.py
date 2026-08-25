@@ -54,6 +54,18 @@ class TranscriptRepo:
         rows = self.conn.execute(query, params).fetchall()
         return [row_to_transcript(r) for r in rows]
 
+    def search(self, match: str, limit: int = 100) -> list[tuple[Transcript, float]]:
+        """Full-text search"""
+        rows = self.conn.execute(
+            "SELECT t.video_id, t.transcript_id, t.time_start_ms, t.time_end_ms, "
+            "t.text, bm25(transcripts_fts) AS score "
+            "FROM transcripts_fts JOIN transcripts t "
+            "ON t.transcript_pk = transcripts_fts.rowid "
+            "WHERE transcripts_fts MATCH ? ORDER BY rank LIMIT ?",
+            (match, limit),
+        ).fetchall()
+        return [(row_to_transcript(r), -float(r["score"])) for r in rows]
+
     def delete(self, video_id: str, transcript_id: str) -> bool:
         cur = self.conn.execute(
             "DELETE FROM transcripts WHERE video_id = ? AND transcript_id = ?",

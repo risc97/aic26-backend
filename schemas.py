@@ -55,8 +55,15 @@ class QueryRequest(BaseModel):
 class KeyframeQueryRequest(QueryRequest):
     model: KeyframeModel = Field("siglip2", description="Model dùng để search")
 
-class TranscriptQueryRequest(QueryRequest):
+class TranscriptSemanticQueryRequest(QueryRequest):
     model: TranscriptModel = Field("gte", description="Model dùng để search")
+
+class TranscriptExactQueryRequest(QueryRequest):
+    phrase: bool = Field(
+            False,
+            description="True = các từ phải liền nhau đúng thứ tự ('sạt lở'), "
+                        "False = câu thoại chứa đủ các từ ở bất kỳ đâu",
+        )
 
 class OcrQueryRequest(QueryRequest):
     phrase: bool = Field(
@@ -76,9 +83,13 @@ class KeyframeQueryResponse(QueryResponse):
     model: KeyframeModel
     results: List[Item] = Field(default_factory=list)
 
-class TranscriptQueryResponse(QueryResponse):
+class TranscriptSemanticQueryResponse(QueryResponse):
     mode: Literal["transcript_semantic"] = "transcript_semantic"
     model: Literal["gte"] = "gte"
+    results: List[TranscriptItem] = Field(default_factory=list)
+
+class TranscriptExactQueryResponse(QueryResponse):
+    mode: Literal["transcript_exact"] = "transcript_exact"
     results: List[TranscriptItem] = Field(default_factory=list)
 
 class OcrQueryResponse(QueryResponse):

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from schemas import Item, OcrItem, LogEntry, TranscriptItem, TemporalQueryRequest, TemporalQueryResponse, TemporalItem, TemporalMatch
-from schemas import KeyframeQueryRequest, TranscriptQueryRequest, OcrQueryRequest, KeyframeQueryResponse, TranscriptQueryResponse, OcrQueryResponse
+from schemas import KeyframeQueryRequest, TranscriptSemanticQueryRequest, OcrQueryRequest, KeyframeQueryResponse, TranscriptSemanticQueryResponse, OcrQueryResponse
+from schemas import TranscriptExactQueryRequest, TranscriptExactQueryResponse
 import uuid
 from datetime import datetime
 from routers.logs import LogDatabase
@@ -53,11 +54,9 @@ def query_keyframe(request: KeyframeQueryRequest, http_request: Request):
     request_id = _log("keyframe", request.model, request.query, request.limit, results)
     return KeyframeQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))
 
-@router.post("/transcript", response_model=TranscriptQueryResponse)
-def query_transcript(request: TranscriptQueryRequest, http_request: Request):
-    pool, searcher = _searcher(http_request, "transcript_semantic", request.model)
-    hits = pool.submit(searcher.search, request.query, request.limit).result()
-    results = [
+def _transcript_items(hits: list) -> list[TranscriptItem]:
+    """Both transcript modes answer with TranscriptHit, so they share one shape."""
+    return [
         TranscriptItem(
             video_id=hit.transcript.video_id,
             transcript_id=hit.transcript.transcript_id,
@@ -73,8 +72,22 @@ def query_transcript(request: TranscriptQueryRequest, http_request: Request):
             ],
         ) for hit in hits
     ]
+
+@router.post("/transcript", response_model=TranscriptSemanticQueryResponse)
+def query_transcript(request: TranscriptSemanticQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "transcript_semantic", request.model)
+    hits = pool.submit(searcher.search, request.query, request.limit).result()
+    results = _transcript_items(hits)
     request_id = _log("transcript_semantic", request.model, request.query, request.limit, results)
-    return TranscriptQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))
+    return TranscriptSemanticQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))
+
+@router.post("/transcript/exact", response_model=TranscriptExactQueryResponse)
+def query_transcript_exact(request: TranscriptExactQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "transcript_exact", None)
+    hits = pool.submit(searcher.search, request.query, request.limit, request.phrase).result()
+    results = _transcript_items(hits)
+    request_id = _log("transcript_exact", None, request.query, request.limit, results)
+    return TranscriptExactQueryResponse(request_id=request_id, results=results, total=len(results))
 
 @router.post("/ocr", response_model=OcrQueryResponse)
 def query_ocr(request: OcrQueryRequest, http_request: Request):

@@ -7,7 +7,7 @@ import torch
 from registry import SearcherRegistry, TableSearcherRegistry
 from keyframe import KeyframeSearcher
 from ocr import OcrSearcher
-from transcript import TranscriptSearcher
+from transcript import TranscriptExactSearcher, TranscriptSemanticSearcher
 from config import (
     CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH,
 )
@@ -33,7 +33,7 @@ def build_keyframe_registry(device: str):
 
 def build_transcript_registry(device: str):
     registry = SearcherRegistry(
-        TRANSCRIPT_INDEX_PATHS, METADATA_DB_PATH, TranscriptSearcher, device=device,
+        TRANSCRIPT_INDEX_PATHS, METADATA_DB_PATH, TranscriptSemanticSearcher, device=device,
     )
 
     available = registry.available()
@@ -68,6 +68,9 @@ async def lifespan(app: FastAPI):
     app.state.searchers = {
         "keyframe": app.state.search_pool.submit(build_keyframe_registry, device).result(),
         "transcript_semantic": app.state.search_pool.submit(build_transcript_registry, device).result(),
+        "transcript_exact": app.state.search_pool.submit(
+            build_table_registry, "transcript_exact", "transcripts",
+            TranscriptExactSearcher).result(),
         "ocr_exact": app.state.search_pool.submit(
             build_table_registry, "ocr_exact", "ocr", OcrSearcher).result(),
     }
