@@ -27,4 +27,4 @@ def similar_keyframes(video_id: str, keyframe_id: str,
         )
         for h in hits
     ]
-    return SimilarResponse(video_id, keyframe_id, model, len(results), results)
+    return SimilarResponse(video_id=video_id, keyframe_id=keyframe_id, model=model, total=len(results), results=results)
