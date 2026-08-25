@@ -6,7 +6,8 @@ import torch
 from models import MODEL_CHOICES
 from db import Keyframe, MetadataDatabase
 from .ids import split_vector_id
-
+from config import SHARD_DIRS
+from .vectors import retrieve_keyframe_vector
 
 @dataclass
 class SearchHit:
@@ -35,6 +36,7 @@ class KeyframeSearcher:
         self.model_name = model
         self.model.to(device)
         self.model.amp = device == "cuda"
+        self.shard_dir = SHARD_DIRS.get(model)
 
     def _free_image_encoder(self):
         inner = getattr(self.model, "model", None)
@@ -46,10 +48,8 @@ class KeyframeSearcher:
         """Texts -> (n, dim) L2-normalized float32"""
         return np.ascontiguousarray(self.model.encode_texts(texts), dtype=np.float32)
 
-    def search(self, query: str, k: int = 20) -> list[SearchHit]:
-        vec = self.encode_texts([query])
+    def search_vector(self, vec: np.ndarray, k: int = 20) -> list[SearchHit]:
         scores, ids = self.index.search(vec, k=k)
-        # a 1-row query may come back 1D or 2D depending on the build
         scores, ids = np.atleast_2d(scores)[0], np.atleast_2d(ids)[0]
 
         keys = [split_vector_id(int(i)) for i in ids if int(i) >= 0]
@@ -71,6 +71,16 @@ class KeyframeSearcher:
                 continue
             hits.append(SearchHit(len(hits) + 1, float(score), keyframe, video_fps(keyframe.video_id)))
         return hits
+
+    def search(self, query: str, k: int = 20) -> list[SearchHit]:
+        vec = self.encode_texts([query])
+        return self.search_vector(vec, k)
+
+    def similar(self, video_id: str, keyframe_id: str, k: int = 20) -> list[SearchHit]:
+        return self.search_vector(retrieve_keyframe_vector(self.shard_dir, video_id, keyframe_id), k)
+
+
+        
 
     def close(self) -> None:
         self.db.close()

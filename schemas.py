@@ -96,6 +96,13 @@ class OcrQueryResponse(QueryResponse):
     mode: Literal["ocr_exact"] = "ocr_exact"
     results: List[OcrItem] = Field(default_factory=list)
 
+class SimilarResponse(BaseModel):
+    video_id: str
+    keyframe_id: str
+    model: KeyframeModel
+    total: int = 0
+    results: List[Item] = Field(default_factory = list)
+
 class LogEntry(BaseModel):
     request_id: str
     timestamp: datetime | None

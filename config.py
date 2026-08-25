@@ -12,12 +12,17 @@ OCR_DB_PATH = DATA_PATH / "ocr"
 KF_INDEX_PATH = DATA_PATH / "index"
 CKPT_PATH = DATA_PATH / "checkpoints" / "c2lip.pt"
 
+
 DEFAULT_MODEL = "siglip2"
 KF_INDEX_PATHS = {
     "siglip": KF_INDEX_PATH / "siglip-keyframes.tvim",
     "siglip2": KF_INDEX_PATH / "siglip2-keyframes.tvim",
     "pe": KF_INDEX_PATH / "pe-keyframes.tvim"
 }
+
+SHARD_DIR = DATA_PATH / "embeddings"
+SHARD_DIRS = {model: SHARD_DIR / model for model in KF_INDEX_PATHS}
+
 CKPT_PATHS = {
     "siglip": CKPT_PATH,
     "siglip2": None,

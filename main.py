@@ -11,7 +11,7 @@ from transcript import TranscriptExactSearcher, TranscriptSemanticSearcher
 from config import (
     CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH,
 )
-from routers import keyframe, query, video
+from routers import keyframe, query, video, similar
 from routers.logs import LogDatabase
 
 
@@ -99,6 +99,7 @@ app.add_middleware(
 app.include_router(keyframe.router, prefix="/keyframe")
 app.include_router(video.router, prefix="/video")
 app.include_router(query.router, prefix="/query")
+app.include_router(similar.router, prefix="/similar")
 
 @app.get("/health")
 async def health_check():
