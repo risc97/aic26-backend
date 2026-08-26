@@ -105,6 +105,11 @@ def query_ocr(request: OcrQueryRequest, http_request: Request):
 
 @router.post("/temporal", response_model=TemporalQueryResponse)
 def temporal_query(request: TemporalQueryRequest, http_request: Request):
+    """Executes sequence alignment temporal search across video keyframes.
+
+    Supports Top-K sequence matching per video (request.top_k), multi-stage sliding window DP,
+    optional stage skipping (request.max_skips), and log(1 + beta * sim) scoring.
+    """
     pool, searcher = _searcher(http_request, "keyframe", request.model)
 
     if request.gaps is not None and len(request.gaps) != len(request.stages) - 1:
@@ -125,6 +130,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
         score_cap=request.score_cap,
         span_penalty=request.span_penalty,
         beta=request.beta,
+        top_k=request.top_k,
     )
 
     request_id = str(uuid.uuid4())

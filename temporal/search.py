@@ -18,7 +18,7 @@ from typing import Callable, Sequence
 
 import numpy as np
 
-from .dp import align
+from .dp import align, align_topk
 from .stages import (SENTINEL, build_allowlist, candidate_videos, flatten, pool,
                      squash, zscore)
 from .types import Stage, StageMatch, TemporalHit, TemporalParams
@@ -97,22 +97,24 @@ def temporal_search(
     for video_id, (lo, hi, kfs) in layout.items():
         block = scores[:, lo:hi]
         ts = np.asarray([kf.timestamp_ms for kf in kfs], dtype=np.float64)
-        total, path = align(
+        topk_totals, topk_paths = align_topk(
             block, ts, params.gap_for,
+            top_k=params.top_k,
             skip_penalty=params.skip_penalty,
             span_penalty_ms=span,
             max_skips=params.max_skips,
             beta=params.beta,
         )
-        steps = path.tolist()
-        matches = [
-            StageMatch(i, labels[i], float(block[i, j]), kfs[j], video_fps(video_id))
-            for i, j in enumerate(steps) if j >= 0
-        ]
-        if not matches:
-            continue
-        ranked.append((total, video_id, matches,
-                       [i for i, j in enumerate(steps) if j < 0]))
+        for total, path in zip(topk_totals, topk_paths):
+            steps = path.tolist()
+            matches = [
+                StageMatch(i, labels[i], float(block[i, j]), kfs[j], video_fps(video_id))
+                for i, j in enumerate(steps) if j >= 0
+            ]
+            if not matches:
+                continue
+            ranked.append((total, video_id, matches,
+                           [i for i, j in enumerate(steps) if j < 0]))
 
     ranked.sort(key=lambda row: -row[0])
     return [

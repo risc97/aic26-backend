@@ -148,6 +148,7 @@ class TemporalQueryRequest(BaseModel):
         None, gt=0,
         description="Tham số beta cho biến đổi log(1 + beta * sim); null = không áp dụng",
     )
+    top_k: int = Field(5, ge=1, description="Số lượng chuỗi ứng viên (top-k) tốt nhất cho mỗi video")
 
 class TemporalQueryResponse(BaseModel):
     mode: Literal["temporal"] = "temporal"
