@@ -53,6 +53,58 @@ def _compute_bounds(ts: np.ndarray, gap: Gap) -> tuple[np.ndarray, np.ndarray]:
     return l_bounds, r_bounds
 
 
+NMS_FRAME_THRESHOLD = 2
+NMS_TIME_THRESHOLD_MS = 3000.0
+
+
+def _apply_temporal_nms(
+    topk_scores: list[float],
+    topk_paths: list[np.ndarray],
+    ts: np.ndarray,
+    top_k: int,
+    nms_frame_thresh: int = NMS_FRAME_THRESHOLD,
+    nms_time_thresh_ms: float = NMS_TIME_THRESHOLD_MS,
+) -> tuple[list[float], list[np.ndarray]]:
+    """Deduplicates top-K candidate paths using Temporal Non-Maximum Suppression (NMS).
+
+    Suppresses candidate paths whose stage keyframe positions are within nms_frame_thresh
+    or nms_time_thresh_ms of an already selected higher-scoring candidate.
+    """
+    if not topk_scores or top_k <= 0:
+        return [], []
+
+    kept_scores: list[float] = []
+    kept_paths: list[np.ndarray] = []
+
+    for score, path in zip(topk_scores, topk_paths):
+        is_duplicate = False
+        for kept_p in kept_paths:
+            max_frame_diff = 0
+            max_time_diff_ms = 0.0
+
+            for i in range(len(path)):
+                idx_a = path[i]
+                idx_b = kept_p[i]
+
+                if idx_a >= 0 and idx_b >= 0:
+                    f_diff = abs(int(idx_a) - int(idx_b))
+                    t_diff = abs(float(ts[idx_a]) - float(ts[idx_b]))
+                    max_frame_diff = max(max_frame_diff, f_diff)
+                    max_time_diff_ms = max(max_time_diff_ms, t_diff)
+
+            if max_frame_diff <= nms_frame_thresh or max_time_diff_ms <= nms_time_thresh_ms:
+                is_duplicate = True
+                break
+
+        if not is_duplicate:
+            kept_scores.append(score)
+            kept_paths.append(path)
+            if len(kept_scores) >= top_k:
+                break
+
+    return kept_scores, kept_paths
+
+
 def align_topk(
     S: np.ndarray,
     ts: np.ndarray,
@@ -121,12 +173,13 @@ def align_topk(
                     F[i, s, r][take_skip] = cand_skip[take_skip]
                     is_skip[i, s, r][take_skip] = True
 
-    # Flatten initial stage scores F[0] to find global top-K candidate starting points
+    # Extract an expanded candidate pool (3 * top_k) for Post-DP NMS deduplication
+    pool_k = max(top_k * 3, 15)
     F0 = F[0].reshape(-1)
-    topk_flat_indices = np.argsort(-F0)[:top_k]
+    topk_flat_indices = np.argsort(-F0)[:pool_k]
 
-    topk_scores: list[float] = []
-    topk_paths: list[np.ndarray] = []
+    raw_scores: list[float] = []
+    raw_paths: list[np.ndarray] = []
 
     for flat_idx in topk_flat_indices:
         score_val = float(F0[flat_idx])
@@ -155,10 +208,11 @@ def align_topk(
         first_frame = path[0] if path[0] >= 0 else 0
         final_score = float(score_val + span_penalty_ms * ts[first_frame])
 
-        topk_scores.append(final_score)
-        topk_paths.append(path)
+        raw_scores.append(final_score)
+        raw_paths.append(path)
 
-    return topk_scores, topk_paths
+    return _apply_temporal_nms(raw_scores, raw_paths, ts, top_k)
+
 
 
 def align(
