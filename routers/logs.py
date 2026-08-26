@@ -1,6 +1,6 @@
 from schemas import LogEntry, Item, OcrItem, TranscriptItem, TemporalItem
 from config import LOG_DB_PATH
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 import sqlite3
 import json
 from pathlib import Path
@@ -85,7 +85,7 @@ def row_to_log(r: sqlite3.Row) -> LogEntry:
     results = []
     if r["mode"] == "keyframe":
         results = [Item(**i) for i in json.loads(r["results"])]
-    elif r["mode"] == "transcript_semantic":
+    elif r["mode"] in ("transcript_semantic", "transcript_exact"):
         results = [TranscriptItem(**i) for i in json.loads(r["results"])]
     elif r["mode"] == "ocr_exact":
         results = [OcrItem(**i) for i in json.loads(r["results"])]
@@ -98,3 +98,19 @@ def row_to_log(r: sqlite3.Row) -> LogEntry:
         results=results,
         total=r["total"], timestamp=r["timestamp"],
     )
+
+@router.get("", response_model=list[LogEntry])
+def fetch_logs(limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)):
+    with LogDatabase(LOG_DB_PATH) as db:
+        return db.logs.list_recent(limit, offset)
+
+@router.get("/{request_id}", response_model=LogEntry)
+def fetch_log(request_id: str):
+    with LogDatabase(LOG_DB_PATH) as db:
+        entry = db.logs.get(request_id)
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Không tìm thấy log với request_id '{request_id}'.",
+        )
+    return entry
