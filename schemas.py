@@ -29,19 +29,6 @@ class OcrItem(Item):
     text: str
     score: float
 
-class TemporalMatch(Item):
-    stage: int
-    query: str
-    score: float
-    timestamp_ms: int
-
-class TemporalItem(BaseModel):
-    rank: int
-    video_id: str
-    score: float
-    matches: List[TemporalMatch] = Field(default_factory=list)
-    skipped_stages: List[int] = Field(default_factory=list)
-
 
 class KeyframeListResponse(BaseModel):
     video_id: str
@@ -120,34 +107,48 @@ class TemporalStage(BaseModel):
         description="Cách diễn đạt khác của cùng sự kiện, gộp bằng max",
     )
 
-class GapSpec(BaseModel):
-    min_frames: int = Field(1, ge=1, description="Cách stage trước ít nhất bao nhiêu keyframe")
-    max_frames: int | None = Field(None, description="Cách stage trước nhiều nhất bao nhiêu keyframe")
-    min_gap_ms: int = Field(0, ge=0)
-    max_gap_ms: int | None = Field(120_000)
-
 class TemporalQueryRequest(BaseModel):
     stages: List[TemporalStage] = Field(..., min_length=2, description="Chuỗi sự kiện, đúng thứ tự")
-    limit: int = Field(20, description="Số video trả về")
+    limit: int = Field(100, description="Số video trả về")
     model: ModelName = Field(DEFAULT_MODEL, description="Model dùng để search")
-    candidate_k: int = Field(2000, description="Độ sâu recall mỗi stage")
-    gaps: List[GapSpec] | None = Field(
-        None, description="Ràng buộc khoảng cách, một phần tử cho mỗi bước chuyển (len = len(stages) - 1)",
+    chains_per_video: int = Field(1, ge=1, description="Số chuỗi tối đa mỗi video đóng góp")
+    r: int = Field(2000, ge=1, description="Độ sâu recall của q1 (S_R)")
+    rrf_k: float = 60.0
+    weights: List[float] | None = Field(
+        None, description="w_i cho từng query, đúng len(stages); null = tất cả bằng 1",
     )
-    max_skips: int | None = Field(
-        0, ge=0,
-        description="Số stage tối đa được phép bỏ qua; 0 = mọi stage phải khớp, null = không giới hạn",
+    max_gap_ms: int | None = Field(
+        120_000, ge=0,
+        description="Khoảng cách tối đa giữa hai bước liên tiếp; null = không giới hạn",
     )
-    skip_penalty: float = Field(0.5, description="Phạt khi một stage không khớp, trong giới hạn max_skips")
-    score_cap: float | None = Field(
-        None, gt=0,
-        description="Giới hạn điểm mỗi stage ở +-cap z-unit, tránh một keyframe lấn át cả chuỗi; null = không giới hạn",
+    iou_threshold: float = Field(
+        0.5, ge=0.0, le=1.0,
+        description="Hai chuỗi chồng nhau quá mức này bị coi là trùng lặp",
     )
-    span_penalty: float = Field(0.0, description="Phạt theo z-unit trên mỗi phút độ dài chuỗi")
-    beta: float | None = Field(
-        None, gt=0,
-        description="Tham số beta cho biến đổi log(1 + beta * sim); null = không áp dụng",
-    )
+
+    @model_validator(mode="after")
+    def _check_weights(self):
+        if self.weights is not None and len(self.weights) != len(self.stages):
+            raise ValueError(
+                f"weights phải có đúng một giá trị cho mỗi stage: cần "
+                f"{len(self.stages)}, nhận {len(self.weights)}"
+            )
+        return self
+
+class TemporalMatch(Item):
+    stage: int
+    query: str
+    score: float
+    rank: int # vị trí của kf này trong result của query
+    timestamp_ms: int
+
+class TemporalItem(BaseModel):
+    rank: int
+    video_id: str
+    score: float # RRF score
+    length: int # số query chuỗi khớp
+    matches: List[TemporalMatch] = Field(default_factory=list)
+    skipped_stages: List[int] = Field(default_factory=list)
 
 class TemporalQueryResponse(BaseModel):
     mode: Literal["temporal"] = "temporal"
