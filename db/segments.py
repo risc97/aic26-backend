@@ -44,6 +44,24 @@ class SegmentRepo:
         ).fetchall()
         return [row_to_segment(r) for r in rows]
 
+    def list_by_videos(self, video_ids: Iterable[str]):
+        video_ids = list(video_ids)
+        out: dict[str, list[Segment]] = {}
+        for i in range(0, len(video_ids), 400):
+            chunk = video_ids[i:i+400]
+            placeholders = ",".join("?"*len(chunk))
+            rows = self.conn.execute(
+                f"SELECT * FROM segments WHERE video_id IN ({placeholders}) "
+                f"ORDER BY video_id, frame_start",
+                chunk,
+            ).fetchall()
+            for r in rows:
+                video_id = r["video_id"]
+                if video_id not in out:
+                    out[video_id] = []
+                out[video_id].append(row_to_segment(r))
+        return out
+
     def update(
         self, segment_id: int,
         frame_start: int | None = None, frame_end: int | None = None,

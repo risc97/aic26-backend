@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from routers.logs import LogDatabase
 from config import LOG_DB_PATH
-from temporal import Gap, TemporalParams, temporal_search
+from temporal import TemporalParams, temporal_search
 
 router = APIRouter(tags=["Query"])
 
@@ -107,32 +107,20 @@ def query_ocr(request: OcrQueryRequest, http_request: Request):
 def temporal_query(request: TemporalQueryRequest, http_request: Request):
     pool, searcher = _searcher(http_request, "keyframe", request.model)
 
-    if request.gaps is not None and len(request.gaps) != len(request.stages) - 1:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"gaps must hold one entry per transition: expected "
-                f"{len(request.stages) - 1}, got {len(request.gaps)}"
-            ),
-        )
-
-    stages = [[s.query, *s.variants] for s in request.stages]
+    stages = [s.query for s in request.stages]   # variants ignored for now
     params = TemporalParams(
-        candidate_k=request.candidate_k,
-        gaps=[Gap(**g.model_dump()) for g in request.gaps] if request.gaps else Gap(),
-        skip_penalty=request.skip_penalty,
-        max_skips=request.max_skips,
-        score_cap=request.score_cap,
-        span_penalty=request.span_penalty,
-        beta=request.beta,
+        r=request.r,
+        rrf_k=request.rrf_k,
+        weights=request.weights,
+        max_gap_ms=request.max_gap_ms,
+        iou_threshold=request.iou_threshold,
+        chains_per_video=request.chains_per_video,
+        max_videos=request.limit,
     )
 
-    request_id = str(uuid.uuid4())
-    timestamp = datetime.now()
-
     hits = pool.submit(
-        temporal_search, searcher.index, searcher.db, searcher.encode_texts, stages,
-        k=request.limit, params=params,
+        temporal_search, searcher.index, searcher.db, searcher.encode_texts,
+        stages, params,
     ).result()
 
     results = [
@@ -140,12 +128,14 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
             rank=hit.rank,
             video_id=hit.video_id,
             score=hit.score,
+            length=hit.length,
             skipped_stages=hit.skipped,
             matches=[
                 TemporalMatch(
                     stage=m.stage,
                     query=m.query,
                     score=m.score,
+                    rank=m.rank,
                     video_id=m.keyframe.video_id,
                     keyframe_id=m.keyframe.keyframe_id,
                     timestamp_ms=m.keyframe.timestamp_ms,
@@ -159,6 +149,6 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
     ]
 
     request_id = _log("temporal", request.model,
-                  " -> ".join(s.query for s in request.stages),
-                  request.limit, results)
-    return TemporalQueryResponse(request_id=request_id, model=request.model, results=results, total=len(results))
+                      " -> ".join(stages), request.limit, results)
+    return TemporalQueryResponse(request_id=request_id, model=request.model,
+                                 results=results, total=len(results))
