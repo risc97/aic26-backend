@@ -109,7 +109,7 @@ class TemporalStage(BaseModel):
 
 class TemporalQueryRequest(BaseModel):
     stages: List[TemporalStage] = Field(..., min_length=2, description="Chuỗi sự kiện, đúng thứ tự")
-    limit: int = Field(50, description="Số video trả về")
+    limit: int = Field(100, description="Số video trả về")
     model: ModelName = Field(DEFAULT_MODEL, description="Model dùng để search")
     chains_per_video: int = Field(1, ge=1, description="Số chuỗi tối đa mỗi video đóng góp")
     r: int = Field(2000, ge=1, description="Độ sâu recall của q1 (S_R)")

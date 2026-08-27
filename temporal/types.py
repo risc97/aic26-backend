@@ -7,7 +7,7 @@ Stage = str | Sequence[str]
 
 @dataclass
 class TemporalParams:
-    r: int = 1000 # q1 candidates -> S_R
+    r: int = 2000 # q1 candidates -> S_R
     rrf_k: float = 60.0
     weights: list[float] | None = None # w_i per query
     max_gap_ms: int | None = 120_000
