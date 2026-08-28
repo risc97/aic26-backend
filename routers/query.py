@@ -73,7 +73,7 @@ def _transcript_items(hits: list) -> list[TranscriptItem]:
         ) for hit in hits
     ]
 
-@router.post("/transcript/semantic  ", response_model=TranscriptSemanticQueryResponse)
+@router.post("/transcript/semantic", response_model=TranscriptSemanticQueryResponse)
 def query_transcript_semantic(request: TranscriptSemanticQueryRequest, http_request: Request):
     pool, searcher = _searcher(http_request, "transcript_semantic", request.model)
     hits = pool.submit(searcher.search, request.query, request.limit).result()
