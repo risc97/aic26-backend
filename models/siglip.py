@@ -11,10 +11,10 @@ PRETRAINED = "webli"
 class SigLIP(Encoder):
     MODEL_NAME = MODEL_NAME
 
-    def _create_model_and_transforms(self, *, pretrained: bool = False):
+    def _create_model_and_transforms(self, *, pretrained: bool = False, precision: str = "fp32"):
         pt = PRETRAINED if pretrained else None
         model, _, preprocess = open_clip.create_model_and_transforms(
-            MODEL_NAME, pretrained=pt, precision="fp16",
+            MODEL_NAME, pretrained=pt, precision=precision,
         )
         self.EMBED_DIM = int(open_clip.get_model_config(MODEL_NAME)["embed_dim"])
         return model, preprocess

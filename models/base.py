@@ -37,7 +37,7 @@ class Encoder(nn.Module):
     IMAGE_SIZE: int = 0
 
     def __init__(self, ckpt: str | Path | None = None, device: str = "cuda",
-                 amp: bool = False, compile: bool = False):
+                 precision: str | None = None, compile: bool = False):
         super().__init__()
 
         if ckpt is not None:
@@ -53,8 +53,12 @@ class Encoder(nn.Module):
             sd = {k.removeprefix("module."): v for k, v in sd.items()}
 
         pretrained = ckpt is None  # use source weights when no checkpoint given
+        if precision is None:
+            precision = "fp16" if torch.device(device).type == "cuda" else "fp32"
         with _suppress_root_logger():
-            model, preprocess = self._create_model_and_transforms(pretrained=pretrained)
+            model, preprocess = self._create_model_and_transforms(
+                pretrained=pretrained, precision=precision,
+            )
         if ckpt is not None:
             model_keys = set(model.state_dict())
             extra = sorted(set(sd) - model_keys)
@@ -76,7 +80,6 @@ class Encoder(nn.Module):
         self.model = model
         self.preprocess = preprocess
         self.tokenizer = self._get_tokenizer()
-        self.amp = amp
 
         self.to(device)
         self.eval()
@@ -101,14 +104,10 @@ class Encoder(nn.Module):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
-    def _autocast(self):
-        return torch.autocast(self.device.type, dtype=torch.float16, enabled=self.amp)
-
     @torch.inference_mode()
     def encode_images(self, pixel_values: torch.Tensor) -> np.ndarray:
         pixel_values = pixel_values.to(self.device, non_blocking=True)
-        with self._autocast():
-            feats = self._forward_image(pixel_values)
+        feats = self._forward_image(pixel_values)
         return F.normalize(feats.float(), dim=-1).cpu().numpy()
 
     @torch.inference_mode()
@@ -116,6 +115,5 @@ class Encoder(nn.Module):
         if self.tokenizer is None:
             raise NotImplementedError(f"{type(self).__name__} has no text encoder")
         tokens = self.tokenizer(texts).to(self.device)
-        with self._autocast():
-            feats = self._forward_text(tokens)
+        feats = self._forward_text(tokens)
         return F.normalize(feats.float(), dim=-1).cpu().numpy()

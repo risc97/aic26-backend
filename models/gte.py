@@ -15,7 +15,7 @@ class Gte:
     def __init__(self, device: str = "cuda", amp: bool = True):
         self.device = torch.device(device)
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-        self.model = AutoModel.from_pretrained(MODEL_NAME, trust_remote_code=True)
+        self.model = AutoModel.from_pretrained(MODEL_NAME, torch_dtype=torch.float16, trust_remote_code=True)
         self.model.to(self.device).eval()
         self.amp = amp and self.device.type == "cuda"
 
