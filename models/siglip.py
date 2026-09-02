@@ -14,7 +14,7 @@ class SigLIP(Encoder):
     def _create_model_and_transforms(self, *, pretrained: bool = False):
         pt = PRETRAINED if pretrained else None
         model, _, preprocess = open_clip.create_model_and_transforms(
-            MODEL_NAME, pretrained=pt,
+            MODEL_NAME, pretrained=pt, precision="fp16",
         )
         self.EMBED_DIM = int(open_clip.get_model_config(MODEL_NAME)["embed_dim"])
         return model, preprocess

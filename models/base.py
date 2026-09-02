@@ -37,7 +37,7 @@ class Encoder(nn.Module):
     IMAGE_SIZE: int = 0
 
     def __init__(self, ckpt: str | Path | None = None, device: str = "cuda",
-                 amp: bool = True, compile: bool = False):
+                 amp: bool = False, compile: bool = False):
         super().__init__()
 
         if ckpt is not None:
