@@ -1,8 +1,6 @@
 { pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixos-25.05.tar.gz")
     { config.allowUnfree = true; } }:
 
-# Pinned to nixos-25.05 for python3.10
-
 let
   dynamic-libs = with pkgs; [
     stdenv.cc.cc.lib # Provides libstdc++.so.6 (crucial for TensorFlow/Keras/Numpy)
@@ -16,11 +14,9 @@ let
 in
 pkgs.mkShell {
   packages = with pkgs; [
-    python310
-
+    python312
     gcc
     gnumake
-
     ngrok
     wget
     ffmpeg
@@ -37,7 +33,7 @@ pkgs.mkShell {
 
     if [ ! -d ".venv" ]; then
       echo "Creating venv..."
-      python3.10 -m venv .venv
+      python3.12 -m venv .venv
     fi
 
     # Activate the environment
