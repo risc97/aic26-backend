@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from models import MODEL_CHOICES
+from PIL import Image
 from db import Keyframe, MetadataDatabase
 from .ids import split_vector_id
 from config import SHARD_DIRS
@@ -31,8 +32,8 @@ class KeyframeSearcher:
         self.index = IdMapIndex.load(str(index_path))
         self.db = MetadataDatabase(db_path)
         cls = MODEL_CHOICES[model]
-        self.model = cls(ckpt, device="cpu")
-        self._free_image_encoder()
+        self.model = cls(ckpt, device="cpu", precision="fp16" if device == "cuda" else "fp32")
+        # self._free_image_encoder()
         self.model_name = model
         self.model.to(device)
         self.model.amp = device == "cuda"
@@ -47,6 +48,11 @@ class KeyframeSearcher:
     def encode_texts(self, texts: list[str]) -> np.ndarray:
         """Texts -> (n, dim) L2-normalized float32"""
         return np.ascontiguousarray(self.model.encode_texts(texts), dtype=np.float32)
+
+    def encode_image(self, image: Image.Image) -> np.ndarray:
+        """PIL Image -> (1, dim) L2-normalized float32"""
+        pixel_values = self.model.preprocess(image).unsqueeze(0)
+        return np.ascontiguousarray(self.model.encode_images(pixel_values), dtype=np.float32)
 
     def search_vector(self, vec: np.ndarray, k: int = 20) -> list[SearchHit]:
         scores, ids = self.index.search(vec, k=k)
@@ -79,7 +85,9 @@ class KeyframeSearcher:
     def similar(self, video_id: str, keyframe_id: str, k: int = 20) -> list[SearchHit]:
         return self.search_vector(retrieve_keyframe_vector(self.shard_dir, video_id, keyframe_id), k)
 
-
+    def similar_by_image(self, image: Image.Image, k: int = 20) -> list[SearchHit]:
+        vec = self.encode_image(image)
+        return self.search_vector(vec, k)
         
 
     def close(self) -> None:
