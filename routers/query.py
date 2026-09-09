@@ -2,6 +2,11 @@ from fastapi import APIRouter, HTTPException, Request
 from schemas import Item, OcrItem, LogEntry, TranscriptItem, TemporalQueryRequest, TemporalQueryResponse, TemporalItem, TemporalMatch
 from schemas import KeyframeQueryRequest, TranscriptSemanticQueryRequest, OcrQueryRequest, KeyframeQueryResponse, TranscriptSemanticQueryResponse, OcrQueryResponse
 from schemas import TranscriptExactQueryRequest, TranscriptExactQueryResponse
+from schemas import DetectQueryRequest, DetectQueryResponse, DetectItem
+from schemas import TemporalDetectQueryRequest, TemporalDetectQueryResponse
+from temporal import detect_temporal_search
+from temporal.detect import label
+from detect import ObjectQuery
 import uuid
 from datetime import datetime
 from routers.logs import LogDatabase
@@ -152,3 +157,70 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
                       " -> ".join(stages), request.limit, results)
     return TemporalQueryResponse(request_id=request_id, model=request.model,
                                  results=results, total=len(results))
+
+@router.post("/detect", response_model=DetectQueryResponse)
+def query_detect(request: DetectQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "detect", request.model)
+
+    candidates = None
+    if request.prefilter is not None:
+        _, kf_searcher = _searcher(http_request, "keyframe", request.prefilter.model)
+        kf_hits = pool.submit(kf_searcher.search, request.prefilter.query,
+                              request.prefilter.limit).result()
+        candidates = [(h.keyframe.video_id, h.keyframe.keyframe_id) for h in kf_hits]
+
+    objects = [ObjectQuery(o.phrase, o.min_count, o.min_score, o.region,
+                           o.min_area, o.max_area) for o in request.objects]
+    hits = pool.submit(searcher.search, objects, request.limit, candidates,
+                       request.nms_iou).result()
+
+    results = [
+        DetectItem(
+            keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id,
+            timestamp_ms=hit.keyframe.timestamp_ms, frame_idx=hit.keyframe.frame_idx,
+            video_fps=hit.video_fps, score=hit.score,
+            counts=hit.counts, boxes=[[list(b) for b in per] for per in hit.boxes],
+        ) for hit in hits
+    ]
+    query = " + ".join(f"{o.min_count}x {o.phrase}" for o in request.objects)
+    request_id = _log("detect", request.model, query, request.limit, results)
+    return DetectQueryResponse(request_id=request_id, model=request.model,
+                               results=results, total=len(results))
+
+@router.post("/temporal/detect", response_model=TemporalDetectQueryResponse)
+def temporal_detect_query(request: TemporalDetectQueryRequest, http_request: Request):
+    pool, searcher = _searcher(http_request, "detect", request.model)
+
+    stages = [
+        tuple(ObjectQuery(o.phrase, o.min_count, o.min_score, o.region,
+                          o.min_area, o.max_area) for o in stage.objects)
+        for stage in request.stages
+    ]
+    params = TemporalParams(
+        r=request.r, rrf_k=request.rrf_k, weights=request.weights,
+        max_gap_ms=request.max_gap_ms, iou_threshold=request.iou_threshold,
+        chains_per_video=request.chains_per_video, max_videos=request.limit,
+    )
+
+    hits = pool.submit(detect_temporal_search, searcher.store, searcher.stages,
+                       searcher.db, stages, params, request.nms_iou).result()
+
+    results = [
+        TemporalItem(
+            rank=hit.rank, video_id=hit.video_id, score=hit.score,
+            length=hit.length, skipped_stages=hit.skipped,
+            matches=[
+                TemporalMatch(
+                    stage=m.stage, query=m.query, score=m.score, rank=m.rank,
+                    video_id=m.keyframe.video_id, keyframe_id=m.keyframe.keyframe_id,
+                    timestamp_ms=m.keyframe.timestamp_ms,
+                    frame_idx=m.keyframe.frame_idx, video_fps=m.video_fps,
+                ) for m in hit.matches
+            ],
+        ) for hit in hits
+    ]
+
+    request_id = _log("temporal_detect", request.model,
+                      " -> ".join(label(s) for s in stages), request.limit, results)
+    return TemporalDetectQueryResponse(request_id=request_id, model=request.model,
+                                       results=results, total=len(results))

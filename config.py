@@ -47,3 +47,12 @@ def stored_path(path: str | Path) -> str:
         return str(resolved.relative_to(DATA_PATH))
     except ValueError:
         return str(resolved)
+
+DETECT_DIR = DATA_PATH / "detections"
+DEFAULT_DETECT_MODEL = "owlv2-base"
+DETECT_REPOS = {
+    "owlv2-base": "google/owlv2-base-patch16-ensemble",
+    "owlv2-large": "google/owlv2-large-patch14-ensemble",
+}
+DETECT_SHARD_DIRS = {model: DETECT_DIR / model for model in DETECT_REPOS}
+DETECT_PROMPT = "a photo of a {}"

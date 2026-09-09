@@ -8,8 +8,9 @@ from registry import SearcherRegistry, TableSearcherRegistry
 from keyframe import KeyframeSearcher
 from ocr import OcrSearcher
 from transcript import TranscriptExactSearcher, TranscriptSemanticSearcher
+from detect import DetectSearcher
 from config import (
-    CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH,
+    CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH, DETECT_SHARD_DIRS
 )
 from routers import keyframe, query, video, similar, logs
 from routers.logs import LogDatabase
@@ -56,6 +57,17 @@ def build_table_registry(mode: str, table: str, searcher_cls):
         print(f"{mode} search available: {count} '{table}' rows (loaded on first use)")
     return registry
 
+def build_detect_registry(device: str):
+    registry = SearcherRegistry(
+        DETECT_SHARD_DIRS, METADATA_DB_PATH, DetectSearcher, device=device,
+    )
+    available = registry.available()
+    if not available:
+        print("warning: no detection shards found, mode='detect' will return 503")
+    else:
+        print(f"Detection models available: {', '.join(available)} "
+              f"(loaded on first use, {device})")
+    return registry
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,6 +85,7 @@ async def lifespan(app: FastAPI):
             TranscriptExactSearcher).result(),
         "ocr_exact": app.state.search_pool.submit(
             build_table_registry, "ocr_exact", "ocr", OcrSearcher).result(),
+        "detect": app.state.search_pool.submit(build_detect_registry, device).result(),
     }
 
     yield

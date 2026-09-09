@@ -4,10 +4,13 @@ from typing import List, Literal
 from datetime import datetime
 
 from config import DEFAULT_MODEL
-ModelName = Literal["siglip", "siglip2", "gte", "pe"]
 KeyframeModel = Literal["siglip", "siglip2", "pe"]
 TranscriptModel = Literal["gte"]
-SearchMode = Literal["keyframe", "transcript_semantic", "transcript_exact", "ocr_exact", "temporal"]
+ModelName   = Literal["siglip", "siglip2", "gte", "pe", "owlv2-base", "owlv2-large"]
+SearchMode  = Literal["keyframe", "transcript_semantic", "transcript_exact",
+                      "ocr_exact", "temporal", "detect", "temporal_detect"]
+DetectModel = Literal["owlv2-base", "owlv2-large"]
+Region = Literal["left", "right", "center", "top", "bottom"]
 
 class Item(BaseModel):
     keyframe_id: str
@@ -152,4 +155,66 @@ class TemporalItem(BaseModel):
 
 class TemporalQueryResponse(BaseModel):
     mode: Literal["temporal"] = "temporal"
+    results: List[TemporalItem] = Field(default_factory=list)
+
+class DetectObject(BaseModel):
+    phrase: str = Field(..., description="Tên object")
+    min_count: int = Field(1, ge=1, description="Số lượng tối thiểu trong khung hình")
+    min_score: float = Field(0.25, ge=0.0, le=1.0)
+    region: Region | None = Field(None, description="Vị trí trong khung hình")
+    min_area: float = Field(0.0, ge=0.0, le=1.0, description="Tỉ lệ diện tích tối thiểu")
+    max_area: float = Field(1.0, ge=0.0, le=1.0)
+
+class DetectPrefilter(BaseModel):
+    query: str = Field(..., description="Câu truy vấn ngữ nghĩa chạy trước")
+    model: KeyframeModel = "siglip2"
+    limit: int = Field(2000, ge=1, description="Số keyframe đưa vào bước detect")
+
+class DetectItem(Item):
+    counts: List[int] = Field(default_factory=list, description="Theo thứ tự objects")
+    boxes: List[List[List[float]]] = Field(
+        default_factory=list, description="[object][box] = [x0, y0, x1, y1, score]")
+
+class DetectQueryRequest(BaseModel):
+    objects: List[DetectObject] = Field(..., min_length=1)
+    limit: int = Field(100, ge=1)
+    model: DetectModel = "owlv2-base"
+    nms_iou: float = Field(0.5, ge=0.0, le=1.0)
+    prefilter: DetectPrefilter | None = Field(
+        None, description="Bỏ trống = quét toàn bộ corpus (chậm hơn nhiều)")
+
+class DetectQueryResponse(QueryResponse):
+    mode: Literal["detect"] = "detect"
+    model: DetectModel
+    results: List[DetectItem] = Field(default_factory=list)
+
+
+# ---
+
+class DetectStageRequest(BaseModel):
+    objects: List[DetectObject] = Field(..., min_length=1,
+                                        description="Tất cả object phải xuất hiện cùng khung hình")
+
+class TemporalDetectQueryRequest(BaseModel):
+    stages: List[DetectStageRequest] = Field(..., min_length=2,
+                                             description="Chuỗi sự kiện, đúng thứ tự")
+    limit: int = Field(100, ge=1, description="Số video trả về")
+    model: DetectModel = "owlv2-base"
+    nms_iou: float = Field(0.5, ge=0.0, le=1.0)
+    r: int = Field(5000, ge=1, description="Độ sâu recall của stage 1 (S_R)")
+    rrf_k: float = 60.0
+    weights: List[float] | None = None
+    max_gap_ms: int | None = Field(120_000, ge=0)
+    iou_threshold: float = Field(0.5, ge=0.0, le=1.0)
+    chains_per_video: int = Field(1, ge=1)
+
+    @model_validator(mode="after")
+    def _check_weights(self):
+        if self.weights is not None and len(self.weights) != len(self.stages):
+            raise ValueError(f"weights cần đúng {len(self.stages)} giá trị")
+        return self
+
+class TemporalDetectQueryResponse(QueryResponse):
+    mode: Literal["temporal_detect"] = "temporal_detect"
+    model: DetectModel
     results: List[TemporalItem] = Field(default_factory=list)

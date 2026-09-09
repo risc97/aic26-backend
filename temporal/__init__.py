@@ -1,4 +1,5 @@
 from .types import Chain, Hop, Stage, StageMatch, TemporalHit, TemporalParams
+from .detect import detect_temporal_search
 
 __all__ = [
     "Chain", "Hop", "Stage", "StageMatch", "TemporalHit", "TemporalParams",

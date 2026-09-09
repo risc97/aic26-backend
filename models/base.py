@@ -104,9 +104,16 @@ class Encoder(nn.Module):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
+    @property
+    def dtype(self) -> torch.dtype:
+        for m in self.model.modules():
+            if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
+                return m.weight.dtype
+        return next(self.parameters()).dtype
+
     @torch.inference_mode()
     def encode_images(self, pixel_values: torch.Tensor) -> np.ndarray:
-        pixel_values = pixel_values.to(self.device, non_blocking=True)
+        pixel_values = pixel_values.to(self.device, dtype=self.dtype, non_blocking=True)
         feats = self._forward_image(pixel_values)
         return F.normalize(feats.float(), dim=-1).cpu().numpy()
 
