@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from .candidates import Pool
-from .types import Chain, Hop, TemporalParams
+from .candidates import Pool, segment_spans
+from .types import Chain, Hop, StageMatch, TemporalHit, TemporalParams
 
 
 def _span(hop: Hop, spans: dict[int, tuple[int, int]]) -> tuple[int, int]:
@@ -81,3 +81,36 @@ def select(by_video: dict[str, list[Chain]], params: TemporalParams) -> list[Cha
         taken[c.video_id] = n + 1
         out.append(c)
     return out
+
+def build_hits(pool: Pool, db, params: TemporalParams, n_stages: int,
+               labels: list[str], make_chain) -> list[TemporalHit]:
+    """
+    make_chain(seed, video_id, spans) -> Chain turns one seed into a finished
+    chain; callers differ only in how that chain is produced (walk() alone
+    for a semantic search, walk() + _truncate() for a detection search).
+    """
+    fps: dict[str, float] = {}
+    for video_id in pool.layout:
+        video = db.videos.get(video_id)
+        fps[video_id] = video.fps if video else 25.0
+    spans = segment_spans(db, list(pool.layout), fps)
+
+    by_video = {
+        video_id: dedupe(
+            [make_chain(seed, video_id, spans) for seed in seeds],
+            params.iou_threshold)
+        for video_id, seeds in pool.seeds.items()
+    }
+
+    return [
+        TemporalHit(
+            rank=rank, score=chain.rrf, length=chain.length,
+            video_id=chain.video_id,
+            matches=[StageMatch(h.stage, labels[h.stage], h.score, h.rank,
+                                h.keyframe, fps.get(chain.video_id, 0.0))
+                     for h in chain.hops],
+            # a chain only ever runs out at the end, so this is always a tail
+            skipped=list(range(chain.length, n_stages)),
+        )
+        for rank, chain in enumerate(select(by_video, params), start=1)
+    ]

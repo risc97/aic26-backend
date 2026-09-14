@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 import numpy as np
-from .candidates import SENTINEL, build_pool, score_pool, segment_spans
-from .chains import dedupe, select, walk
-from .types import Stage, StageMatch, TemporalHit, TemporalParams
+from .candidates import SENTINEL, build_pool, score_pool
+from .chains import build_hits, walk
+from .types import Stage, TemporalParams
 
 
 def temporal_search(
@@ -55,33 +55,8 @@ def temporal_search(
     # score q2..qn over the pool
     score_pool(index, queries, pool)
 
-    fps: dict[str, float] = {}
-    for video_id in pool.layout:
-        video = db.videos.get(video_id)
-        fps[video_id] = video.fps if video else 25.0
-    spans = segment_spans(db, list(pool.layout), fps)
+    # chain + rank
+    def make_chain(seed, video_id, spans):
+        return walk(pool, video_id, seed, params, n_stages, spans)
 
-    # chain
-    by_video = {
-        video_id: dedupe([walk(pool, video_id, seed, params, n_stages, spans)
-                          for seed in seeds], params.iou_threshold)
-        for video_id, seeds in pool.seeds.items()
-    }
-
-    # rank
-    return [
-        TemporalHit(
-            rank=rank,
-            score=chain.rrf,
-            length=chain.length,
-            video_id=chain.video_id,
-            matches=[
-                StageMatch(h.stage, labels[h.stage], h.score, h.rank,
-                           h.keyframe, fps.get(chain.video_id, 0.0))
-                for h in chain.hops
-            ],
-            # a chain only ever runs out at the end, so this is always a tail
-            skipped=list(range(chain.length, n_stages)),
-        )
-        for rank, chain in enumerate(select(by_video, params), start=1)
-    ]
+    return build_hits(pool, db, params, n_stages, labels, make_chain)

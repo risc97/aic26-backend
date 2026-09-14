@@ -17,9 +17,9 @@ from typing import Sequence
 import numpy as np
 
 from detect.score import ObjectQuery
-from .candidates import build_pool, segment_spans
-from .chains import _span, dedupe, select, walk
-from .types import Chain, StageMatch, TemporalHit, TemporalParams
+from .candidates import build_pool
+from .chains import _span, build_hits, walk
+from .types import Chain, TemporalParams
 
 DetectStage = Sequence[ObjectQuery]
 
@@ -109,32 +109,11 @@ def detect_temporal_search(
 
     _fill_pool(store, cache, stages[1:], pool, nms_iou)
 
-    fps: dict[str, float] = {}
-    for video_id in pool.layout:
-        video = db.videos.get(video_id)
-        fps[video_id] = video.fps if video else 25.0
-    spans = segment_spans(db, list(pool.layout), fps)
-
     sentinel = len(pool.allowlist)   # build_pool fills unscored ranks with n + 1
-    by_video = {
-        video_id: dedupe(
-            [_truncate(walk(pool, video_id, seed, params, n_stages, spans),
-                       params, spans, sentinel)
-             for seed in seeds],
-            params.iou_threshold)
-        for video_id, seeds in pool.seeds.items()
-    }
-
     labels = [label(objects) for objects in stages]
-    return [
-        TemporalHit(
-            rank=rank, score=chain.rrf, length=chain.length,
-            video_id=chain.video_id,
-            matches=[StageMatch(h.stage, labels[h.stage], h.score, h.rank,
-                                h.keyframe, fps.get(chain.video_id, 0.0))
-                     for h in chain.hops],
-            # a chain only ever runs out at the end, so this is always a tail
-            skipped=list(range(chain.length, n_stages)),
-        )
-        for rank, chain in enumerate(select(by_video, params), start=1)
-    ]
+
+    def make_chain(seed, video_id, spans):
+        chain = walk(pool, video_id, seed, params, n_stages, spans)
+        return _truncate(chain, params, spans, sentinel)
+
+    return build_hits(pool, db, params, n_stages, labels, make_chain)
