@@ -28,3 +28,24 @@ def probe_video(video_path: Path) -> tuple[float, int]:
         duration_ms = 0
 
     return fps, duration_ms
+
+def probe_codec(video_path: Path) -> str:
+    """Return the video stream's codec name"""
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+         "-show_entries", "stream=codec_name",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+        capture_output=True, text=True,
+    )
+    return result.stdout.strip()
+
+def probe_frame_rate(video_path: Path) -> str:
+    """Return r_frame_rate as a string"""
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+         "-show_entries", "stream=r_frame_rate",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+        capture_output=True, text=True,
+    )
+    rate = result.stdout.strip()
+    return "" if rate in ("", "0/0") else rate

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-VIDEO_SUFFIXES = (".webm", ".mp4", ".mkv")
+VIDEO_SUFFIXES = (".webm", ".mp4", ".mkv", ".mov")
 
 def find_videos(videos_dir: Path,
                 suffixes: tuple[str, ...] = VIDEO_SUFFIXES) -> dict[str, Path]:
