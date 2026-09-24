@@ -8,6 +8,7 @@ Stage = str | Sequence[str]
 @dataclass
 class TemporalParams:
     r: int = 2000 # q1 candidates -> S_R
+    seed: int = 0 # stage index searched corpus-wide
     rrf_k: float = 60.0
     weights: list[float] | None = None # w_i per query
     max_gap_ms: int | None = 120_000
@@ -32,7 +33,7 @@ class Hop:
 @dataclass
 class Chain:
     video_id: str
-    hops: list[Hop] # hops[0] is q1
+    hops: list[Hop] # stage order
     rrf: float
     start_ms: int # first hop's segment begin
     end_ms: int # last hop's segment

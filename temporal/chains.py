@@ -17,28 +17,48 @@ def _span(hop: Hop, spans: dict[int, tuple[int, int]]) -> tuple[int, int]:
 
 def walk(pool: Pool, video_id: str, seed: Hop, params: TemporalParams,
          n_stages: int, spans: dict[int, tuple[int, int]]) -> Chain:
-    """Grow one chain forward in time from a single q1 seed.
+    """Grow chain outward in time from a single seed.
 
-    Each query takes its best-ranked keyframe after the previous hop and within
-    max_gap_ms. The first query with nothing to take ends the chain, so a short
-    chain always misses a tail of queries, never one in the middle.
     """
     lo, hi = pool.layout[video_id]
     times = pool.times[lo:hi]
-    hops = [seed]
-    cur = seed.keyframe.timestamp_ms
+    gap = params.max_gap_ms
 
-    for stage in range(1, n_stages):
-        first = int(np.searchsorted(times, cur, side="right"))   # strictly after
-        last = (len(times) if params.max_gap_ms is None
-                else int(np.searchsorted(times, cur + params.max_gap_ms, side="right")))
+    def step(stage: int, cur: int, forward: bool) -> Hop | None:
+        if forward:
+            first = int(np.searchsorted(times, cur, side="right"))   # strictly after
+            last = (len(times) if gap is None
+                    else int(np.searchsorted(times, cur + gap, side="right")))
+        else:
+            last = int(np.searchsorted(times, cur, side="left"))     # strictly before
+            first = (0 if gap is None
+                     else int(np.searchsorted(times, cur - gap, side="left")))
         if first >= last:
-            break                                                # chain ends here
+            return None
         window = pool.ranks[stage, lo + first:lo + last]
-        col = lo + first + int(window.argmin())                  # best rank in the window
-        hops.append(Hop(stage, col, pool.keyframes[col],
-                        float(pool.scores[stage, col]), int(pool.ranks[stage, col])))
-        cur = int(pool.times[col])
+        col = lo + first + int(window.argmin())                      # best rank in the window
+        return Hop(stage, col, pool.keyframes[col],
+                   float(pool.scores[stage, col]), int(pool.ranks[stage, col]))
+
+    ahead: list[Hop] = []
+    cur = seed.keyframe.timestamp_ms
+    for stage in range(seed.stage + 1, n_stages):
+        hop = step(stage, cur, forward=True)
+        if hop is None:
+            break                                                    # this direction ends here
+        ahead.append(hop)
+        cur = int(pool.times[hop.column])
+
+    behind: list[Hop] = []
+    cur = seed.keyframe.timestamp_ms
+    for stage in range(seed.stage - 1, -1, -1):
+        hop = step(stage, cur, forward=False)
+        if hop is None:
+            break
+        behind.append(hop)
+        cur = int(pool.times[hop.column])
+
+    hops = behind[::-1] + [seed] + ahead                             # stage order == time order
 
     rrf = sum(params.weight(h.stage) / (params.rrf_k + h.rank) for h in hops)
     start_ms = _span(hops[0], spans)[0]
@@ -110,7 +130,7 @@ def build_hits(pool: Pool, db, params: TemporalParams, n_stages: int,
                                 h.keyframe, fps.get(chain.video_id, 0.0))
                      for h in chain.hops],
             # a chain only ever runs out at the end, so this is always a tail
-            skipped=list(range(chain.length, n_stages)),
+            skipped=sorted(set(range(n_stages)) - {h.stage for h in chain.hops}),
         )
         for rank, chain in enumerate(select(by_video, params), start=1)
     ]

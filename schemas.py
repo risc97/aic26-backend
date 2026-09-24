@@ -112,6 +112,7 @@ class TemporalStage(BaseModel):
 
 class TemporalQueryRequest(BaseModel):
     stages: List[TemporalStage] = Field(..., min_length=2, description="Chuỗi sự kiện, đúng thứ tự")
+    seed: int = Field(0, ge=0, description="Stage để search toàn corpus")
     limit: int = Field(100, description="Số video trả về")
     model: ModelName = Field(DEFAULT_MODEL, description="Model dùng để search")
     chains_per_video: int = Field(1, ge=1, description="Số chuỗi tối đa mỗi video đóng góp")
@@ -137,6 +138,13 @@ class TemporalQueryRequest(BaseModel):
                 f"{len(self.stages)}, nhận {len(self.weights)}"
             )
         return self
+    
+    @model_validator(mode="after")
+    def _check_seed(self):
+        if self.seed >= len(self.stages):
+            raise ValueError(f"seed phải nằm trong 0..{len(self.stages) - 1}")
+        return self
+
 
 class TemporalMatch(Item):
     stage: int
@@ -198,6 +206,7 @@ class DetectStageRequest(BaseModel):
 class TemporalDetectQueryRequest(BaseModel):
     stages: List[DetectStageRequest] = Field(..., min_length=2,
                                              description="Chuỗi sự kiện, đúng thứ tự")
+    seed: int = Field(0, ge=0, description="Stage search toàn corpus")
     limit: int = Field(100, ge=1, description="Số video trả về")
     model: DetectModel = "owlv2-base"
     nms_iou: float = Field(0.5, ge=0.0, le=1.0)
@@ -213,6 +222,13 @@ class TemporalDetectQueryRequest(BaseModel):
         if self.weights is not None and len(self.weights) != len(self.stages):
             raise ValueError(f"weights cần đúng {len(self.stages)} giá trị")
         return self
+
+    @model_validator(mode="after")
+    def _check_seed(self):
+        if self.seed >= len(self.stages):
+            raise ValueError(f"seed phải nằm trong 0..{len(self.stages) - 1}")
+        return self
+
 
 class TemporalDetectQueryResponse(QueryResponse):
     mode: Literal["temporal_detect"] = "temporal_detect"

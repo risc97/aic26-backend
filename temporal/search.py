@@ -32,6 +32,8 @@ def temporal_search(
     n_stages = len(stages)
     if n_stages < 2:
         raise ValueError("temporal search needs at least 2 stages")
+    if not 0 <= params.seed < n_stages:
+        raise ValueError(f"seed must be a stage index in 0..{n_stages - 1}")
     
     labels = [s if isinstance(s, str) else list(s)[0] for s in stages]
     queries = np.ascontiguousarray(encode(labels), dtype=np.float32)
@@ -39,21 +41,23 @@ def temporal_search(
     # retrieve S_R
 
     # Drop the variant for now
-    scores, ids = index.search(queries[:1], k=params.r)
+    seed = params.seed
+    scores, ids = index.search(queries[seed:seed + 1], k=params.r)
     scores, ids = np.atleast_2d(scores)[0], np.atleast_2d(ids)[0]
     keep = (ids != SENTINEL)
     scores, ids = scores[keep], ids[keep].astype(np.uint64)
+
 
     if scores.size == 0:
         return []
 
     # build pool
-    pool = build_pool(index, db, ids, scores, n_stages)
+    pool = build_pool(index, db, ids, scores, n_stages, seed, params.max_gap_ms)
     if pool is None:
         return []
 
-    # score q2..qn over the pool
-    score_pool(index, queries, pool)
+    # score every stage but the seed over the pool
+    score_pool(index, queries, pool, seed)
 
     # chain + rank
     def make_chain(seed, video_id, spans):

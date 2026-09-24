@@ -41,39 +41,36 @@ def _seeds(store, passes, scores, r: int):
     return ids[order].astype(np.uint64), sc[order].astype(np.float32)
 
 
-def _fill_pool(store, cache, stages, pool, nms_iou: float) -> None:
-    """Phase 3, straight out of the cache -- no shard reads, no index call.
-
-    candidates.score_pool gives every column a rank because every column has
-    a cosine. Here a column that fails a stage keeps the sentinel rank
-    build_pool put there, which is what lets walk's output be cut later.
-    """
+def _fill_pool(store, cache, stages, pool, nms_iou: float, seed: int) -> None:
     rows = store.rows_for(pool.allowlist.astype(np.int64))
-    for stage, objects in enumerate(stages, start=1):
+    for stage, objects in enumerate(stages):
+        if stage == seed:
+            continue
         passes, scores = cache.get(objects, nms_iou)
         hit = np.flatnonzero(passes[rows])
         pool.scores[stage, hit] = scores[rows[hit]]
-        # ranks are global over the pool, never per video: a per-video rank
-        # would make every video's best keyframe rank 1 (algo.md, phase 3)
         order = hit[np.argsort(-pool.scores[stage, hit], kind="stable")]
         pool.ranks[stage, order] = np.arange(1, len(order) + 1)
 
 
 def _truncate(chain: Chain, params: TemporalParams, spans, sentinel: int) -> Chain:
-    """Cut a chain at its first unsatisfied stage.
+    """Cut a chain back to the run of satisfied stages around its seed.
 
-    walk() is greedy and forward-only: it sets `cur` from whatever it just
-    took, so every hop after an unsatisfied one descends from a hop that
-    should not exist. Dropping that tail is exactly what breaking inside
-    walk() would have produced. Hop 0 is a seed and always holds.
+    walk() is greedy and one-directional per side: it sets `cur` from whatever it
+    just took, so every hop past an unsatisfied one descends from a hop that should
+    not exist. Dropping both tails is what breaking inside walk() would have
+    produced. The seed hop always holds.
     """
     hops = chain.hops
-    for i, hop in enumerate(hops[1:], start=1):
-        if hop.rank > sentinel:
-            hops = hops[:i]
-            break
-    if len(hops) == len(chain.hops):
+    pivot = next(i for i, h in enumerate(hops) if h.stage == params.seed)
+    lo = hi = pivot
+    while hi + 1 < len(hops) and hops[hi + 1].rank <= sentinel:
+        hi += 1
+    while lo - 1 >= 0 and hops[lo - 1].rank <= sentinel:
+        lo -= 1
+    if lo == 0 and hi == len(hops) - 1:
         return chain
+    hops = hops[lo:hi + 1]
     rrf = sum(params.weight(h.stage) / (params.rrf_k + h.rank) for h in hops)
     start = _span(hops[0], spans)[0]
     end = _span(hops[-1], spans)[1]
@@ -96,18 +93,22 @@ def detect_temporal_search(
         raise ValueError("temporal search needs at least 2 stages")
     if any(not objects for objects in stages):
         raise ValueError("every stage needs at least one object")
+    if not 0 <= params.seed < n_stages:
+        raise ValueError(f"seed must be a stage index in 0..{n_stages - 1}")
     stages = [tuple(objects) for objects in stages]
 
-    passes, scores = cache.get(stages[0], nms_iou)
+    passes, scores = cache.get(stages[params.seed], nms_iou)
     if not passes.any():
         return []
     ids, seed_scores = _seeds(store, passes, scores, params.r)
 
-    pool = build_pool(_Contains(store), db, ids, seed_scores, n_stages)
+    pool = build_pool(_Contains(store), db, ids, seed_scores, n_stages,
+                      params.seed, params.max_gap_ms)
+
     if pool is None:
         return []
 
-    _fill_pool(store, cache, stages[1:], pool, nms_iou)
+    _fill_pool(store, cache, stages, pool, nms_iou, params.seed)
 
     sentinel = len(pool.allowlist)   # build_pool fills unscored ranks with n + 1
     labels = [label(objects) for objects in stages]

@@ -115,6 +115,7 @@ def temporal_query(request: TemporalQueryRequest, http_request: Request):
     stages = [s.query for s in request.stages]   # variants ignored for now
     params = TemporalParams(
         r=request.r,
+        seed=request.seed,
         rrf_k=request.rrf_k,
         weights=request.weights,
         max_gap_ms=request.max_gap_ms,
@@ -198,6 +199,7 @@ def temporal_detect_query(request: TemporalDetectQueryRequest, http_request: Req
     ]
     params = TemporalParams(
         r=request.r, rrf_k=request.rrf_k, weights=request.weights,
+        seed=request.seed,
         max_gap_ms=request.max_gap_ms, iou_threshold=request.iou_threshold,
         chains_per_video=request.chains_per_video, max_videos=request.limit,
     )
