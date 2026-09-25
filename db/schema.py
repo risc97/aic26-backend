@@ -88,6 +88,17 @@ CREATE TRIGGER IF NOT EXISTS ocr_au AFTER UPDATE ON ocr BEGIN
 END;
 
 
+-- accent-stripped copies of the text for typo-tolerant search, same rowids;
+-- filled by db.fuzzy.rebuild_fuzzy (needs Python normalisation, so no trigger)
+CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fuzzy USING fts5(
+    text,
+    tokenize = 'trigram'
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS ocr_fuzzy USING fts5(
+    text,
+    tokenize = 'trigram'
+);
+
 """
 
 

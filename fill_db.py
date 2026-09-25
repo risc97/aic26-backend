@@ -145,6 +145,8 @@ def main() -> int:
                               args.keyframes_dir, args.transcripts_dir,
                               args.ocr_dir, args.force, mode=args.mode):
                 failed.append(video_id)
+        db.ocr.sync_fuzzy()
+        db.transcripts.sync_fuzzy()
 
     if failed:
         print(f"\n{len(failed)} video(s) failed: {', '.join(failed)}")

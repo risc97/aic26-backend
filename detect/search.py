@@ -51,7 +51,7 @@ class DetectSearcher:
         for global_rows, emb, box, aux in self.store.chunks(rows):
             probs = torch.einsum("mkd,dq->mkq", emb, queries)
             probs = torch.sigmoid((probs + aux[..., 0:1]) * aux[..., 1:2])
-            ok = (probs >= thresh) & self._masks(box, aux, objects)
+            ok = (probs >= thresh) & geometry_mask(box, aux, objects)
 
             # counts here are pre-NMS, so they over-count and never drop a
             # frame that would survive; the survivors get NMS'd exactly below
@@ -75,7 +75,7 @@ class DetectSearcher:
         for global_rows, emb, box, aux in self.store.chunks(short):
             probs = torch.einsum("mkd,dq->mkq", emb, queries)
             probs = torch.sigmoid((probs + aux[..., 0:1]) * aux[..., 1:2])
-            ok = (probs >= thresh) & self._masks(box, aux, objects)
+            ok = (probs >= thresh) & geometry_mask(box, aux, objects)
             for i, row in enumerate(global_rows):
                 counts, per_object, total = [], [], 0.0
                 for q in range(len(objects)):

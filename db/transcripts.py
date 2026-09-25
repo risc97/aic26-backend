@@ -5,6 +5,7 @@ from typing import Iterable
 
 from .connection import transaction
 from .models import Transcript, row_to_transcript
+from .fuzzy import fuzzy_is_stale, rebuild_fuzzy
 
 COLUMNS = "video_id, transcript_id, time_start_ms, time_end_ms, text"
 
@@ -65,6 +66,22 @@ class TranscriptRepo:
             (match, limit),
         ).fetchall()
         return [(row_to_transcript(r), -float(r["score"])) for r in rows]
+    
+    def fuzzy_search(self, match: str, limit: int = 500) -> list[Transcript]:
+        """Trigram candidates from transcripts_fuzzy, best bm25 first"""
+        rows = self.conn.execute(
+            "SELECT t.video_id, t.transcript_id, t.time_start_ms, t.time_end_ms, "
+            "t.text FROM transcripts_fuzzy JOIN transcripts t "
+            "ON t.transcript_pk = transcripts_fuzzy.rowid "
+            "WHERE transcripts_fuzzy MATCH ? ORDER BY rank LIMIT ?",
+            (match, limit),
+        ).fetchall()
+        return [row_to_transcript(r) for r in rows]
+
+    def sync_fuzzy(self) -> None:
+        if fuzzy_is_stale(self.conn, "transcripts", "transcripts_fuzzy"):
+            rebuild_fuzzy(self.conn, "transcripts", "transcripts_fuzzy")
+
 
     def delete(self, video_id: str, transcript_id: str) -> bool:
         cur = self.conn.execute(

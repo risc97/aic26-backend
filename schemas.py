@@ -49,17 +49,19 @@ class TranscriptSemanticQueryRequest(QueryRequest):
     model: TranscriptModel = Field("gte", description="Model dùng để search")
 
 class TranscriptExactQueryRequest(QueryRequest):
-    phrase: bool = Field(
-            False,
-            description="True = các từ phải liền nhau đúng thứ tự ('sạt lở'), "
-                        "False = câu thoại chứa đủ các từ ở bất kỳ đâu",
+    fuzzy: bool = Field(
+            True,
+            description="True = tìm gần đúng: các từ ở bất kỳ đâu, chấp nhận gõ sai "
+                        "hoặc thiếu dấu. False = tìm chính xác cụm từ "
+                        "(liền nhau, đúng thứ tự, đúng dấu)",
         )
 
 class OcrQueryRequest(QueryRequest):
-    phrase: bool = Field(
-            False,
-            description="Chỉ dùng cho mode exact: True = các từ phải liền nhau đúng "
-                        "thứ tự ('sạt lở'), False = keyframe chứa đủ các từ ở bất kỳ đâu",
+    fuzzy: bool = Field(
+            True,
+            description="True = tìm gần đúng: các từ ở bất kỳ đâu, chấp nhận gõ sai, "
+                        "thiếu dấu hoặc OCR đọc sai. False = tìm chính xác cụm từ "
+                        "(liền nhau, đúng thứ tự, đúng dấu)",
         )
 
 class QueryResponse(BaseModel):

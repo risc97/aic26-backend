@@ -89,7 +89,7 @@ def query_transcript_semantic(request: TranscriptSemanticQueryRequest, http_requ
 @router.post("/transcript/exact", response_model=TranscriptExactQueryResponse)
 def query_transcript_exact(request: TranscriptExactQueryRequest, http_request: Request):
     pool, searcher = _searcher(http_request, "transcript_exact", None)
-    hits = pool.submit(searcher.search, request.query, request.limit, request.phrase).result()
+    hits = pool.submit(searcher.search, request.query, request.limit, request.fuzzy).result()
     results = _transcript_items(hits)
     request_id = _log("transcript_exact", None, request.query, request.limit, results)
     return TranscriptExactQueryResponse(request_id=request_id, results=results, total=len(results))
@@ -97,7 +97,7 @@ def query_transcript_exact(request: TranscriptExactQueryRequest, http_request: R
 @router.post("/ocr", response_model=OcrQueryResponse)
 def query_ocr(request: OcrQueryRequest, http_request: Request):
     pool, searcher = _searcher(http_request, "ocr_exact", None)
-    hits = pool.submit(searcher.search, request.query, request.limit, request.phrase).result()
+    hits = pool.submit(searcher.search, request.query, request.limit, request.fuzzy).result()
     results = [
         OcrItem(
             keyframe_id=hit.keyframe.keyframe_id, video_id=hit.keyframe.video_id,

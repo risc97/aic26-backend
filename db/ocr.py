@@ -5,6 +5,7 @@ from typing import Iterable
 
 from .connection import transaction
 from .models import Ocr, row_to_ocr
+from .fuzzy import fuzzy_is_stale, rebuild_fuzzy
 
 COLUMNS = "video_id, keyframe_id, text"
 
@@ -53,6 +54,21 @@ class OCRRepo:
             (match, limit),
         ).fetchall()
         return [(row_to_ocr(r), -float(r["score"])) for r in rows]
+
+    def fuzzy_search(self, match: str, limit: int = 500) -> list[Ocr]:
+        """Trigram candidates from ocr_fuzzy, best bm25 first"""
+        rows = self.conn.execute(
+            "SELECT o.video_id, o.keyframe_id, o.text "
+            "FROM ocr_fuzzy JOIN ocr o ON o.ocr_id = ocr_fuzzy.rowid "
+            "WHERE ocr_fuzzy MATCH ? ORDER BY rank LIMIT ?",
+            (match, limit),
+        ).fetchall()
+        return [row_to_ocr(r) for r in rows]
+
+    def sync_fuzzy(self) -> None:
+        if fuzzy_is_stale(self.conn, "ocr", "ocr_fuzzy"):
+            rebuild_fuzzy(self.conn, "ocr", "ocr_fuzzy")
+
 
     def delete(self, video_id: str, keyframe_id: str) -> bool:
         cur = self.conn.execute(
