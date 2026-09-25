@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Query, UploadFile, File
 from .query import _searcher
 from config import DEFAULT_MODEL
-from schemas import Item, KeyframeModel, SimilarResponse
+from schemas import Item, SimilarModel, SimilarResponse
 from PIL import Image
 import io
 
@@ -10,7 +10,7 @@ router = APIRouter(tags=["Similar"])
 @router.get("/{video_id}/{keyframe_id}", response_model=SimilarResponse)
 def similar_keyframes(video_id: str, keyframe_id: str,
                       http_request: Request,
-                      model: KeyframeModel = Query(DEFAULT_MODEL, description="Model để so sánh"),
+                      model: SimilarModel = Query(DEFAULT_MODEL, description="Model để so sánh"),
                       limit: int = 100
                       ) -> SimilarResponse:
     pool, searcher = _searcher(http_request, "keyframe", model)
@@ -34,7 +34,7 @@ def similar_keyframes(video_id: str, keyframe_id: str,
 @router.post("/upload", response_model=SimilarResponse)
 async def similar_by_image(http_request: Request,
                            file: UploadFile = File(...),
-                           model: KeyframeModel = Query(DEFAULT_MODEL, description="Model để so sánh"),
+                           model: SimilarModel = Query(DEFAULT_MODEL, description="Model để so sánh"),
                            limit: int = 100) -> SimilarResponse:
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, detail="File uploaded is not an image")

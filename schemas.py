@@ -5,6 +5,8 @@ from datetime import datetime
 
 from config import DEFAULT_MODEL
 KeyframeModel = Literal["siglip", "siglip2", "pe"]
+# image-to-image search also takes image-only encoders
+SimilarModel = Literal["siglip", "siglip2", "pe", "dinov3"]
 TranscriptModel = Literal["gte"]
 ModelName   = Literal["siglip", "siglip2", "gte", "pe", "owlv2-base", "owlv2-large"]
 SearchMode  = Literal["keyframe", "transcript_semantic", "transcript_exact",
@@ -91,7 +93,7 @@ class OcrQueryResponse(QueryResponse):
 class SimilarResponse(BaseModel):
     video_id: str
     keyframe_id: str
-    model: KeyframeModel
+    model: SimilarModel
     total: int = 0
     results: List[Item] = Field(default_factory = list)
 

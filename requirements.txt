@@ -19,5 +19,10 @@ timm>=1.0.15
 transformers>=4.51,<5
 sentencepiece
 
+# DINOv3 encoder: INT8 ONNX on CPU (onnx + onnxscript compile it on first use)
+onnxruntime
+onnx
+onnxscript
+
 # vector index
 turbovec==0.8.0
