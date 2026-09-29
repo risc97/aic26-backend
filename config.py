@@ -20,8 +20,13 @@ KF_INDEX_PATHS = {
     "pe": KF_INDEX_PATH / "pe-keyframes.tvim"
 }
 
+DEFAULT_VISUAL_MODEL = "dinov3"
+VISUAL_INDEX_PATHS = {
+    "dinov3": KF_INDEX_PATH / "dinov3-keyframes.tvim",
+}
+
 SHARD_DIR = DATA_PATH / "embeddings"
-SHARD_DIRS = {model: SHARD_DIR / model for model in KF_INDEX_PATHS}
+SHARD_DIRS = {model: SHARD_DIR / model for model in (*KF_INDEX_PATHS, *VISUAL_INDEX_PATHS)}
 
 CKPT_PATHS = {
     "siglip": CKPT_PATH,

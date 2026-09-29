@@ -10,7 +10,7 @@ from ocr import OcrSearcher
 from transcript import TranscriptExactSearcher, TranscriptSemanticSearcher
 from detect import DetectSearcher
 from config import (
-    CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH, DETECT_SHARD_DIRS
+    CKPT_PATHS, KF_INDEX_PATHS, TRANSCRIPT_INDEX_PATHS, LOG_DB_PATH, METADATA_DB_PATH, DETECT_SHARD_DIRS, VISUAL_INDEX_PATHS,
 )
 from routers import keyframe, query, video, similar, logs
 from routers.logs import LogDatabase
@@ -69,6 +69,18 @@ def build_detect_registry(device: str):
               f"(loaded on first use, {device})")
     return registry
 
+def build_visual_registry(device: str):
+    registry = SearcherRegistry(
+        VISUAL_INDEX_PATHS, METADATA_DB_PATH, KeyframeSearcher, device=device,
+    )
+
+    available = registry.available()
+    if not available:
+        print("warning: no visual index found, /similar/visual will return 503")
+    else:
+        print(f"Visual similarity models available: {', '.join(available)} (loaded on first use, {device})")
+    return registry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Connecting to databases...")
@@ -86,6 +98,7 @@ async def lifespan(app: FastAPI):
         "ocr_exact": app.state.search_pool.submit(
             build_table_registry, "ocr_exact", "ocr", OcrSearcher).result(),
         "detect": app.state.search_pool.submit(build_detect_registry, device).result(),
+        "visual": app.state.search_pool.submit(build_visual_registry, device).result(),
     }
 
     yield

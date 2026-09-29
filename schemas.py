@@ -6,6 +6,7 @@ from datetime import datetime
 from config import DEFAULT_MODEL
 KeyframeModel = Literal["siglip", "siglip2", "pe"]
 TranscriptModel = Literal["gte"]
+VisualModel = Literal["dinov3"]
 ModelName   = Literal["siglip", "siglip2", "gte", "pe", "owlv2-base", "owlv2-large"]
 SearchMode  = Literal["keyframe", "transcript_semantic", "transcript_exact",
                       "ocr_exact", "temporal", "detect", "temporal_detect"]
@@ -91,7 +92,7 @@ class OcrQueryResponse(QueryResponse):
 class SimilarResponse(BaseModel):
     video_id: str
     keyframe_id: str
-    model: KeyframeModel
+    model: KeyframeModel | VisualModel
     total: int = 0
     results: List[Item] = Field(default_factory = list)
 
